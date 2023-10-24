@@ -1,5 +1,5 @@
 # hoverhints.nvim
-## Lazy:
+### Lazy:
 ```
 "soulis-1256/hoverhints.nvim"
 ```
