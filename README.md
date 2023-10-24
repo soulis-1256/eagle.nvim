@@ -1,2 +1,5 @@
 # hoverhints.nvim
-Show lsp diagnostics based on mouse position
+## Lazy:
+```
+"soulis-1256/hoverhints.nvim"
+```
