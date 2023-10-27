@@ -21,3 +21,10 @@ require("hoverhints")
 - [ ] Try to disable plugins like scrollbars for the diagnostics window (deem scrollbarOffset obsolete)
 - [ ] More integration with lsp, like hovering over the whole scope/underline of a diagnostic
 - [ ] Add config and setup options (like a delay between when the diagnostic window can be reopened on rapid mouse movement)
+
+## Support
+If you appreciate my work and would like to see more from me in this space, please consider making a financial contribution through my PayPal.Me link. Your support means a lot. Thank you.
+
+[<img width="250" src="https://github.com/andreostrovsky/donate-with-paypal/blob/master/dark.svg">](https://www.paypal.com/paypalme/soulis1256)
+
+<sub>Many thanks to [andreostrovsky](https://github.com/andreostrovsky/donate-with-paypal) for the donation image.</sub>
