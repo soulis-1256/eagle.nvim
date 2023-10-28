@@ -13,17 +13,17 @@ Lazy:
 require("hoverhints")
 ```
 ## Notes
-- I have not yet found a Neovim plugin that does what I'm trying to achieve here. This is just the first version of what I have in mind and, as you can see in my following TODO list, there is a lot of room for improvement.
+- I have not yet found a Neovim plugin that does what I'm trying to achieve here. This is just the first version of what I have in mind and, as you can see in my following [Todo](#todo) list, there is a lot of room for improvement.
 - The plugin has been tested in Neovim v0.9.4. I can't guarantee full compatibility with older versions of the editor.
 
-## TODO
+## Todo
 - [ ] Integrate vim.lsp.buf.hover() in the diagnostics window (definitions, declarations etc)
 - [ ] Try to disable plugins like scrollbars for the diagnostics window (deem scrollbarOffset obsolete)
-- [ ] More integration with lsp, like hovering over the whole scope/underline of a diagnostic
+- [ ] More integration with lsp, like hovering over the whole scope/underline of a diagnostic (**actively working on this**)
 - [ ] Add config and setup options (like a delay between when the diagnostic window can be reopened on rapid mouse movement)
 
 ## Support
-If you appreciate my work and would like to see more from me in this space, please consider making a financial contribution through my PayPal.Me link. Your support means a lot. Thank you.
+If you appreciate my work and would like to see more from me in this space, please consider making a financial contribution through PayPal. Your support means a lot. Thank you.
 
 [<img width="250" src="https://github.com/andreostrovsky/donate-with-paypal/blob/master/dark.svg">](https://www.paypal.com/paypalme/soulis1256)
 
