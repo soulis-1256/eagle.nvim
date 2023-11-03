@@ -4,7 +4,7 @@ local original_win = vim.api.nvim_get_current_win()
 -- variable that distincs this plugin's windows to any other window (like in telescope)
 -- name this whatever, with any value
 local unique_lock = "1256"
-local current_diagnostic
+local error_message
 
 -- Function to create a floating window at specific screen coordinates
 function create_float_window()
@@ -15,11 +15,12 @@ function create_float_window()
 
   local mouse_pos = vim.fn.getmousepos()
 
-  local _, win = vim.diagnostic.open_float(0, {
+  local win = nil
+  --[[local _, win = vim.diagnostic.open_float(0, {
     border = "single",
     focusable = true,
     focus = false,
-  })
+  })]]
   if win then
     vim.api.nvim_win_set_width(win, vim.api.nvim_win_get_width(win) + scrollbar_offset)
 
@@ -29,16 +30,19 @@ function create_float_window()
     -- Handle the error by creating a custom window under the cursor
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local buf = vim.api.nvim_create_buf(false, true)
-    local error_message = "Too much width for the error window"
+    local num_lines = math.floor(vim.fn.strdisplaywidth(error_message) / vim.o.columns + 1)
+    local width = math.floor(vim.fn.strdisplaywidth(error_message) + 2)
 
     win = vim.api.nvim_open_win(buf, false, {
+      title = "Diagnostics",
+      title_pos = "center",
       relative = 'editor',
-      row = mouse_pos.screenrow - 1,
-      col = mouse_pos.screencol - 1,
+      row = mouse_pos.screenrow,
+      col = mouse_pos.screencol - 2,
       --row = cursor_pos[1] + 1, -- Adjust the row as needed
       --col = cursor_pos[2],
-      width = 40,
-      height = 2,
+      width = width,
+      height = num_lines,
       style = "minimal",
       border = 'single',
       focusable = true,
@@ -63,21 +67,28 @@ function close_float_window(win)
 end
 
 function check_diagnostics()
-  local diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
-
   local has_diagnostics = false
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local mouse_pos = vim.fn.getmousepos()
-  local expr1, expr2, expr3, expr4
 
-  for _, diagnostic in pairs(diagnostics) do
+  local diagnostics = vim.diagnostic.get(0, { lnum = cursor_pos[1] - 1 })
+
+  if #diagnostics > 0 then
+    local diagnostic = diagnostics[1]
+
+    local expr1, expr2, expr3, expr4
+
     expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
     expr2 = (diagnostic.lnum <= cursor_pos[1] - 1) and (cursor_pos[1] - 1 <= diagnostic.end_lnum)
 
     if expr1 and expr2 then
       if diagnostic.lnum == diagnostic.end_lnum then
         expr3 = (diagnostic.col <= mouse_pos.column - 1) and (mouse_pos.column <= diagnostic.end_col)
-        expr4 = (diagnostic.col <= cursor_pos[2] - 1) and (cursor_pos[2] <= diagnostic.end_col)
+        --expr4 = (diagnostic.col <= cursor_pos[2] - 1) and (cursor_pos[2] <= diagnostic.end_col)
+        expr4 = true
+      elseif diagnostic.lnum == mouse_pos.line - 1 then
+        expr3 = diagnostic.col <= mouse_pos.column - 1
+        expr4 = string.len(vim.fn.getline(mouse_pos.line)) ~= mouse_pos.column - 1
       else
         -- Get the line content at the specified line number (mouse_pos.line)
         local line_content = vim.fn.getline(mouse_pos.line)
@@ -112,9 +123,10 @@ function check_diagnostics()
 
     if expr1 and expr2 and expr3 and expr4 then
       has_diagnostics = true
-      break
+      error_message = diagnostic.message
     end
   end
+
   return has_diagnostics
 end
 
