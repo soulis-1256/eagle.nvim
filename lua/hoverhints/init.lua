@@ -4,10 +4,10 @@ local original_win = vim.api.nvim_get_current_win()
 -- variable that distincs this plugin's windows to any other window (like in telescope)
 -- name this whatever, with any value
 local unique_lock = "1256"
-local error_message
+local error_messages = {}
 local border = "rounded"
+local title_pos = "left"
 
--- Function to create a floating window at specific screen coordinates
 function create_float_window()
   local status, _ = pcall(vim.api.nvim_win_get_var, error_win, unique_lock)
   if status then
@@ -17,44 +17,59 @@ function create_float_window()
   local mouse_pos = vim.fn.getmousepos()
 
   -- Handle the error by creating a custom window under the cursor
-  local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local buf = vim.api.nvim_create_buf(false, true)
   local max_width_percentage = 0.3
   local max_width = math.floor(vim.o.columns * max_width_percentage)
-  local num_lines = math.floor(vim.fn.strdisplaywidth(error_message.message) / max_width + 1)
-  local width = math.min(math.floor(vim.fn.strdisplaywidth(error_message.message) + 2), max_width)
+  local counter = 0 -- Initialize a counter
+  local messages = {}
+
+  for _, error_message in pairs(error_messages) do
+    counter = counter + 1 -- Increment the counter
+    local lines = vim.split(error_message.message, "\n")
+
+    -- Concatenate the message with a numbered list format
+    table.insert(messages, table.concat(lines, "\n"))
+  end
+
+  --one line won't have different severity errors, but
+  --if it does, I can change this in the future to "Diagnostic"
+  local severity
+  if error_messages[1].severity == 1 then
+    severity = "Error"
+  elseif error_messages[1].severity == 2 then
+    severity = "Warning"
+  elseif error_messages[1].severity == 3 then
+    severity = "Info"
+  elseif error_messages[1].severity == 4 then
+    severity = "Hint"
+  end
+
+  -- Calculate the position and size of the float window based on the concatenated messages
+  local num_lines = math.floor(vim.fn.strdisplaywidth(table.concat(messages, "\n")) / max_width + 1)
+  local width = math.min(math.floor(vim.fn.strdisplaywidth(table.concat(messages, "\n")) + 2), max_width)
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
-    row_pos = mouse_pos.screenrow - (2.5 * num_lines)
+    row_pos = mouse_pos.screenrow - num_lines - 3
   else
     row_pos = mouse_pos.screenrow
   end
 
-  local severity
-  if error_message.severity == 1 then
-    severity = "Error"
-  elseif error_message.severity == 2 then
-    severity = "Warning"
-  elseif error_message.severity == 3 then
-    severity = "Info"
-  elseif error_message.severity == 4 then
-    severity = "Hint"
-  end
-
-  win = vim.api.nvim_open_win(buf, false, {
+  local win = vim.api.nvim_open_win(buf, false, {
     title = severity,
-    title_pos = "center",
+    title_pos = title_pos,
     relative = 'editor',
     row = row_pos,
-    col = math.floor(mouse_pos.screencol - (width / 2)),
+    col = mouse_pos.screencol - 1,
     width = width,
     height = num_lines,
     style = "minimal",
     border = border,
     focusable = true,
   })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(error_message.message, "\n"))
+
+  -- Set the lines in the buffer with the concatenated messages
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, messages)
 
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
@@ -77,6 +92,8 @@ function close_float_window(win)
 
   if vim.api.nvim_win_is_valid(win) and vim.api.nvim_get_current_win() ~= win then
     vim.api.nvim_win_close(win, false)
+    -- Clear the error_messages table
+    error_messages = {}
   end
 end
 
@@ -104,7 +121,7 @@ function check_diagnostics()
   local diagnostics
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
-  for _, extmark in ipairs(pos_info.extmarks) do
+  for _, extmark in pairs(pos_info.extmarks) do
     local extmark_str = vim.inspect(extmark)
     if string.find(extmark_str, "DiagnosticUnderline") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
@@ -126,56 +143,46 @@ function check_diagnostics()
   end
 
   if diagnostics and #diagnostics > 0 then
-    local diagnostic = diagnostics[1]
+    for _, diagnostic in pairs(diagnostics) do
+      local expr1, expr2, expr3, expr4
 
-    local expr1, expr2, expr3, expr4
+      expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
+      expr2 = (diagnostic.lnum <= cursor_pos[1] - 1) and (cursor_pos[1] - 1 <= diagnostic.end_lnum)
 
-    expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
-    expr2 = (diagnostic.lnum <= cursor_pos[1] - 1) and (cursor_pos[1] - 1 <= diagnostic.end_lnum)
+      if expr1 and expr2 then
+        if diagnostic.lnum == diagnostic.end_lnum then
+          expr3 = (diagnostic.col <= mouse_pos.column - 1) and (mouse_pos.column <= diagnostic.end_col)
+          --expr4 = (diagnostic.col <= cursor_pos[2] - 1) and (cursor_pos[2] <= diagnostic.end_col)
+          expr4 = true
+        elseif diagnostic.lnum == mouse_pos.line - 1 then
+          expr3 = diagnostic.col <= mouse_pos.column - 1
+          expr4 = string.len(vim.fn.getline(mouse_pos.line)) ~= mouse_pos.column - 1
+        else
+          -- Get the line content at the specified line number (mouse_pos.line)
+          local line_content = vim.fn.getline(mouse_pos.line)
+          local non_whitespace_col
 
-    if expr1 and expr2 then
-      if diagnostic.lnum == diagnostic.end_lnum then
-        expr3 = (diagnostic.col <= mouse_pos.column - 1) and (mouse_pos.column <= diagnostic.end_col)
-        --expr4 = (diagnostic.col <= cursor_pos[2] - 1) and (cursor_pos[2] <= diagnostic.end_col)
-        expr4 = true
-      elseif diagnostic.lnum == mouse_pos.line - 1 then
-        expr3 = diagnostic.col <= mouse_pos.column - 1
-        expr4 = string.len(vim.fn.getline(mouse_pos.line)) ~= mouse_pos.column - 1
-      else
-        -- Get the line content at the specified line number (mouse_pos.line)
-        local line_content = vim.fn.getline(mouse_pos.line)
-        local non_whitespace_col
+          -- Iterate through the characters in the line and find the index of the first non-whitespace character
+          for i = 1, #line_content do
+            local char = line_content:sub(i, i)
+            if char:match("%S") then
+              non_whitespace_col = i
+              break
+            end
+          end
 
-        -- Iterate through the characters in the line and find the index of the first non-whitespace character
-        for i = 1, #line_content do
-          local char = line_content:sub(i, i)
-          if char:match("%S") then
-            non_whitespace_col = i
-            break
+          -- Check if the character is not a whitespace character
+          if ((string.len(line_content) ~= mouse_pos.column - 1) and mouse_pos.column >= non_whitespace_col) then
+            expr3 = true
+            expr4 = true
           end
         end
-
-        --[[print("string.len: " ..
-          string.len(line_content) .. ", col: " .. mouse_pos.column .. ", white: " .. non_whitespace)]]
-        -- Check if the character is not a whitespace character
-        if ((string.len(line_content) ~= mouse_pos.column - 1) and mouse_pos.column >= non_whitespace_col) then
-          expr3 = true
-          expr4 = true
-        end
       end
-    end
 
-    --[[print("expr1: " ..
-        tostring(expr1) ..
-        ", expr2: " .. tostring(expr2) .. ", expr3: " .. tostring(expr3) .. ", expr4: " .. tostring(expr4) .. "lnum: " ..
-        diagnostic.lnum ..
-        ", col: " ..
-        diagnostic.col ..
-        ", end_lnum: " .. diagnostic.end_lnum .. ", end_col: " .. diagnostic.end_col)]]
-
-    if expr1 and expr2 and expr3 and expr4 then
-      has_diagnostics = true
-      error_message = diagnostic
+      if expr1 and expr2 and expr3 and expr4 then
+        has_diagnostics = true
+        table.insert(error_messages, diagnostic)
+      end
     end
   end
 
@@ -205,8 +212,6 @@ function check_mouse_win_collision(new_win)
   if (original_win == new_win) then
     return
   end
-
-  --print("win: " .. new_win)
 
   local win_height = vim.api.nvim_win_get_height(new_win)
   local win_width = vim.api.nvim_win_get_width(new_win)
