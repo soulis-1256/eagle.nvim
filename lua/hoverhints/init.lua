@@ -5,6 +5,7 @@ local original_win = vim.api.nvim_get_current_win()
 -- name this whatever, with any value
 local unique_lock = "1256"
 local error_message
+local border = "rounded"
 
 -- Function to create a floating window at specific screen coordinates
 function create_float_window()
@@ -30,11 +31,24 @@ function create_float_window()
     -- Handle the error by creating a custom window under the cursor
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local buf = vim.api.nvim_create_buf(false, true)
-    local num_lines = math.floor(vim.fn.strdisplaywidth(error_message) / vim.o.columns + 1)
-    local width = math.floor(vim.fn.strdisplaywidth(error_message) + 2)
+    local max_width_percentage = 0.6
+    local max_width = math.floor(vim.o.columns * max_width_percentage)
+    local num_lines = math.floor(vim.fn.strdisplaywidth(error_message.message) / max_width + 1)
+    local width = math.min(math.floor(vim.fn.strdisplaywidth(error_message.message) + 2), max_width)
+
+    local severity
+    if error_message.severity == 1 then
+      severity = "Error"
+    elseif error_message.severity == 2 then
+      severity = "Warning"
+    elseif error_message.severity == 3 then
+      severity = "Info"
+    elseif error_message.severity == 4 then
+      severity = "Hint"
+    end
 
     win = vim.api.nvim_open_win(buf, false, {
-      title = "Diagnostics",
+      title = severity,
       title_pos = "center",
       relative = 'editor',
       row = mouse_pos.screenrow,
@@ -44,13 +58,21 @@ function create_float_window()
       width = width,
       height = num_lines,
       style = "minimal",
-      border = 'single',
+      border = border,
       focusable = true,
     })
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(error_message, "\n"))
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(error_message.message, "\n"))
 
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
+    -- Define a highlight group with the desired foreground color
+    vim.api.nvim_exec([[hi MyCustomColor guifg=#ff0000]], false)
+
+    -- Get the number of lines in the buffer
+    local last_line = vim.fn.line('$')
+
+    -- Set the highlight group for the entire buffer
+    vim.api.nvim_buf_add_highlight(buf, -1, 'MyCustomColor', 0, 0, last_line)
 
     -- You may want to set a variable to identify this window as an error window
     vim.api.nvim_win_set_var(win, unique_lock, "")
@@ -123,7 +145,7 @@ function check_diagnostics()
 
     if expr1 and expr2 and expr3 and expr4 then
       has_diagnostics = true
-      error_message = diagnostic.message
+      error_message = diagnostic
     end
   end
 
