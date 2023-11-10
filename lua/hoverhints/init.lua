@@ -31,7 +31,7 @@ function create_float_window()
     -- Handle the error by creating a custom window under the cursor
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     local buf = vim.api.nvim_create_buf(false, true)
-    local max_width_percentage = 0.6
+    local max_width_percentage = 0.3
     local max_width = math.floor(vim.o.columns * max_width_percentage)
     local num_lines = math.floor(vim.fn.strdisplaywidth(error_message.message) / max_width + 1)
     local width = math.min(math.floor(vim.fn.strdisplaywidth(error_message.message) + 2), max_width)
@@ -65,14 +65,14 @@ function create_float_window()
 
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
-    -- Define a highlight group with the desired foreground color
-    vim.api.nvim_exec([[hi MyCustomColor guifg=#ff0000]], false)
+    -- TODO: add more colors
+    vim.cmd("hi warningColor guifg=#ff0000")
 
     -- Get the number of lines in the buffer
     local last_line = vim.fn.line('$')
 
     -- Set the highlight group for the entire buffer
-    vim.api.nvim_buf_add_highlight(buf, -1, 'MyCustomColor', 0, 0, last_line)
+    vim.api.nvim_buf_add_highlight(buf, -1, 'warningColor', 0, 0, last_line)
 
     -- You may want to set a variable to identify this window as an error window
     vim.api.nvim_win_set_var(win, unique_lock, "")
@@ -228,3 +228,31 @@ vim.loop.new_timer():start(0, detect_scroll_timer, vim.schedule_wrap(function()
 end))
 
 vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
+
+function CheckCursorMove()
+  local function checkAndMove()
+    -- Get the current cursor position
+    local current_pos = vim.api.nvim_win_get_cursor(0)
+    print(current_pos[1])
+
+    -- Simulate pressing [% in normal mode
+    vim.api.nvim_input("[%")
+
+    -- Wait for Neovim to process the keys
+    vim.defer_fn(function()
+      -- Check the new cursor position
+      local new_pos = vim.api.nvim_win_get_cursor(0)
+
+      if new_pos[1] == current_pos[1] and new_pos[2] == current_pos[2] then
+        -- Cursor reached the original position, stop recursion
+        print("Cursor reached the original position.")
+      else
+        -- Cursor hasn't reached the original position, continue recursion
+        checkAndMove()
+      end
+    end, 10)
+  end
+
+  -- Start the recursion
+  checkAndMove()
+end
