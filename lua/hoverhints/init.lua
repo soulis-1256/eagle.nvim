@@ -230,29 +230,18 @@ end))
 vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
 
 function CheckCursorMove()
-  local function checkAndMove()
-    -- Get the current cursor position
-    local current_pos = vim.api.nvim_win_get_cursor(0)
-    print(current_pos[1])
+  local current_pos = vim.api.nvim_win_get_cursor(0)
+  print(current_pos[1])
 
-    -- Simulate pressing [% in normal mode
-    vim.api.nvim_input("[%")
+  vim.api.nvim_input("[%")
 
-    -- Wait for Neovim to process the keys
-    vim.defer_fn(function()
-      -- Check the new cursor position
-      local new_pos = vim.api.nvim_win_get_cursor(0)
+  vim.defer_fn(function()
+    local new_pos = vim.api.nvim_win_get_cursor(0)
 
-      if new_pos[1] == current_pos[1] and new_pos[2] == current_pos[2] then
-        -- Cursor reached the original position, stop recursion
-        print("Cursor reached the original position.")
-      else
-        -- Cursor hasn't reached the original position, continue recursion
-        checkAndMove()
-      end
-    end, 10)
-  end
-
-  -- Start the recursion
-  checkAndMove()
+    if new_pos[1] == current_pos[1] and new_pos[2] == current_pos[2] then
+      print("Cursor reached the destination")
+    else
+      CheckCursorMove()
+    end
+  end, 1)
 end
