@@ -16,67 +16,59 @@ function create_float_window()
 
   local mouse_pos = vim.fn.getmousepos()
 
-  local win = nil
-  --[[local _, win = vim.diagnostic.open_float(0, {
-    border = "single",
-    focusable = true,
-    focus = false,
-  })]]
-  if win then
-    vim.api.nvim_win_set_width(win, vim.api.nvim_win_get_width(win) + scrollbar_offset)
+  -- Handle the error by creating a custom window under the cursor
+  local cursor_pos = vim.api.nvim_win_get_cursor(0)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local max_width_percentage = 0.3
+  local max_width = math.floor(vim.o.columns * max_width_percentage)
+  local num_lines = math.floor(vim.fn.strdisplaywidth(error_message.message) / max_width + 1)
+  local width = math.min(math.floor(vim.fn.strdisplaywidth(error_message.message) + 2), max_width)
 
-    -- Setting a custom value will ensure uniqueness, but it shouldn't be needed
-    vim.api.nvim_win_set_var(win, unique_lock, "")
+  local row_pos
+  if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
+    row_pos = mouse_pos.screenrow - (2.5 * num_lines)
   else
-    -- Handle the error by creating a custom window under the cursor
-    local cursor_pos = vim.api.nvim_win_get_cursor(0)
-    local buf = vim.api.nvim_create_buf(false, true)
-    local max_width_percentage = 0.3
-    local max_width = math.floor(vim.o.columns * max_width_percentage)
-    local num_lines = math.floor(vim.fn.strdisplaywidth(error_message.message) / max_width + 1)
-    local width = math.min(math.floor(vim.fn.strdisplaywidth(error_message.message) + 2), max_width)
-
-    local severity
-    if error_message.severity == 1 then
-      severity = "Error"
-    elseif error_message.severity == 2 then
-      severity = "Warning"
-    elseif error_message.severity == 3 then
-      severity = "Info"
-    elseif error_message.severity == 4 then
-      severity = "Hint"
-    end
-
-    win = vim.api.nvim_open_win(buf, false, {
-      title = severity,
-      title_pos = "center",
-      relative = 'editor',
-      row = mouse_pos.screenrow,
-      col = mouse_pos.screencol - 2,
-      --row = cursor_pos[1] + 1, -- Adjust the row as needed
-      --col = cursor_pos[2],
-      width = width,
-      height = num_lines,
-      style = "minimal",
-      border = border,
-      focusable = true,
-    })
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(error_message.message, "\n"))
-
-    vim.bo[buf].modifiable = false
-    vim.bo[buf].readonly = true
-    -- TODO: add more colors
-    vim.cmd("hi warningColor guifg=#ff0000")
-
-    -- Get the number of lines in the buffer
-    local last_line = vim.fn.line('$')
-
-    -- Set the highlight group for the entire buffer
-    vim.api.nvim_buf_add_highlight(buf, -1, 'warningColor', 0, 0, last_line)
-
-    -- You may want to set a variable to identify this window as an error window
-    vim.api.nvim_win_set_var(win, unique_lock, "")
+    row_pos = mouse_pos.screenrow
   end
+
+  local severity
+  if error_message.severity == 1 then
+    severity = "Error"
+  elseif error_message.severity == 2 then
+    severity = "Warning"
+  elseif error_message.severity == 3 then
+    severity = "Info"
+  elseif error_message.severity == 4 then
+    severity = "Hint"
+  end
+
+  win = vim.api.nvim_open_win(buf, false, {
+    title = severity,
+    title_pos = "center",
+    relative = 'editor',
+    row = row_pos,
+    col = math.floor(mouse_pos.screencol - (width / 2)),
+    width = width,
+    height = num_lines,
+    style = "minimal",
+    border = border,
+    focusable = true,
+  })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(error_message.message, "\n"))
+
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
+  -- TODO: add more colors
+  vim.cmd("hi warningColor guifg=#ff0000")
+
+  -- Get the number of lines in the buffer
+  local last_line = vim.fn.line('$')
+
+  -- Set the highlight group for the entire buffer
+  vim.api.nvim_buf_add_highlight(buf, -1, 'warningColor', 0, 0, last_line)
+
+  -- You may want to set a variable to identify this window as an error window
+  vim.api.nvim_win_set_var(win, unique_lock, "")
   error_win = win
 end
 
@@ -88,14 +80,52 @@ function close_float_window(win)
   end
 end
 
+--load all the diagnostics in a sorted table
+local file_diagnostics
+
+function load_diagnostics()
+  file_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
+
+  table.sort(file_diagnostics, function(a, b)
+    return a.lnum < b.lnum
+  end)
+end
+
+vim.api.nvim_create_autocmd('DiagnosticChanged', {
+  callback = function(args)
+    load_diagnostics()
+  end,
+})
+
 function check_diagnostics()
   local has_diagnostics = false
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local mouse_pos = vim.fn.getmousepos()
+  local diagnostics
 
-  local diagnostics = vim.diagnostic.get(0, { lnum = cursor_pos[1] - 1 })
+  local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
+  for _, extmark in ipairs(pos_info.extmarks) do
+    local extmark_str = vim.inspect(extmark)
+    if string.find(extmark_str, "DiagnosticUnderline") then
+      diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
 
-  if #diagnostics > 0 then
+      if #diagnostics == 0 then
+        local outer_line
+        if file_diagnostics then
+          for i = #file_diagnostics, 1, -1 do
+            local diagnostic = file_diagnostics[i]
+            if diagnostic.lnum < mouse_pos.line - 1 then
+              outer_line = diagnostic.lnum
+              break
+            end
+          end
+        end
+        diagnostics = vim.diagnostic.get(0, { lnum = outer_line })
+      end
+    end
+  end
+
+  if diagnostics and #diagnostics > 0 then
     local diagnostic = diagnostics[1]
 
     local expr1, expr2, expr3, expr4
@@ -228,20 +258,3 @@ vim.loop.new_timer():start(0, detect_scroll_timer, vim.schedule_wrap(function()
 end))
 
 vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
-
-function CheckCursorMove()
-  local current_pos = vim.api.nvim_win_get_cursor(0)
-  print(current_pos[1])
-
-  vim.api.nvim_input("[%")
-
-  vim.defer_fn(function()
-    local new_pos = vim.api.nvim_win_get_cursor(0)
-
-    if new_pos[1] == current_pos[1] and new_pos[2] == current_pos[2] then
-      print("Cursor reached the destination")
-    else
-      CheckCursorMove()
-    end
-  end, 1)
-end
