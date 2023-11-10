@@ -20,28 +20,43 @@ function create_float_window()
   local buf = vim.api.nvim_create_buf(false, true)
   local max_width_percentage = 0.3
   local max_width = math.floor(vim.o.columns * max_width_percentage)
-  local counter = 0 -- Initialize a counter
+  local counter = 0
   local messages = {}
 
   for _, error_message in pairs(error_messages) do
-    counter = counter + 1 -- Increment the counter
     local lines = vim.split(error_message.message, "\n")
 
     -- Concatenate the message with a numbered list format
-    table.insert(messages, table.concat(lines, "\n"))
+    if #error_messages > 1 then
+      counter = counter + 1
+      table.insert(messages, counter .. "." .. table.concat(lines, "\n"))
+    else
+      table.insert(messages, table.concat(lines, "\n"))
+    end
   end
 
-  --one line won't have different severity errors, but
-  --if it does, I can change this in the future to "Diagnostic"
   local severity
+  local error_color = "#db4b4b"
+  local warning_color = "#e0af68"
+  local info_color = "#0db9d7"
+  local hint_color = "#00ff00"
+
   if error_messages[1].severity == 1 then
     severity = "Error"
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = error_color })
+    vim.api.nvim_set_hl(0, "FloatBorder", { fg = error_color })
   elseif error_messages[1].severity == 2 then
     severity = "Warning"
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = warning_color })
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = warning_color })
   elseif error_messages[1].severity == 3 then
     severity = "Info"
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = info_color })
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = info_color })
   elseif error_messages[1].severity == 4 then
     severity = "Hint"
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = hint_color })
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = hint_color })
   end
 
   -- Calculate the position and size of the float window based on the concatenated messages
@@ -56,7 +71,7 @@ function create_float_window()
   end
 
   local win = vim.api.nvim_open_win(buf, false, {
-    title = severity,
+    title = { { severity, "TitleColor" } },
     title_pos = title_pos,
     relative = 'editor',
     row = row_pos,
@@ -73,14 +88,6 @@ function create_float_window()
 
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
-  -- TODO: add more colors
-  vim.cmd("hi warningColor guifg=#ff0000")
-
-  -- Get the number of lines in the buffer
-  local last_line = vim.fn.line('$')
-
-  -- Set the highlight group for the entire buffer
-  vim.api.nvim_buf_add_highlight(buf, -1, 'warningColor', 0, 0, last_line)
 
   -- You may want to set a variable to identify this window as an error window
   vim.api.nvim_win_set_var(win, unique_lock, "")
