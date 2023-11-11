@@ -55,8 +55,24 @@ function create_float_window()
   end
 
   -- Calculate the position and size of the float window based on the concatenated messages
-  local num_lines = math.ceil(vim.fn.strdisplaywidth(table.concat(messages, "\n")) / max_width)
-  local width = math.min(math.floor(vim.fn.strdisplaywidth(table.concat(messages, "\n")) + 2), max_width)
+  local num_lines = 0
+  local max_line_width = 0
+
+  for _, message in ipairs(messages) do
+    local lines = vim.split(message, "\n")
+    for _, line in ipairs(lines) do
+      local line_width = vim.fn.strdisplaywidth(line)
+      max_line_width = math.max(max_line_width, line_width)
+    end
+
+    if max_line_width > max_width then
+      num_lines = num_lines + math.ceil(max_line_width / max_width)
+    else
+      num_lines = num_lines + 1
+    end
+  end
+
+  local width = math.min(max_line_width + 2, max_width)
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -202,7 +218,7 @@ local isMouseMoving = false
 function show_diagnostics()
   isMouseMoving = true
   if vim.fn.mode() ~= 'n' then
-    if error_win and vim.api.nvim_win_is_valid(error_win) then
+    if error_win and vim.api.nvim_win_is_valid(error_win) and vim.fn.mode() ~= 'v' then
       close_float_window(error_win)
     end
     return
