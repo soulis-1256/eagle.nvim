@@ -1,8 +1,8 @@
 local error_win = nil
 local scrollbar_offset = 1
 local original_win = vim.api.nvim_get_current_win()
--- variable that distincs this plugin's windows to any other window (like in telescope)
--- name this whatever, with any value
+-- variable that distincts this plugin's windows to any other window (like in telescope)
+-- give it any value as long as there are no issues with other windows
 local unique_lock = "1256"
 local error_messages = {}
 local border = "rounded"
@@ -14,33 +14,12 @@ function create_float_window()
     return
   end
 
-  local mouse_pos = vim.fn.getmousepos()
-
-  -- Handle the error by creating a custom window under the cursor
-  local buf = vim.api.nvim_create_buf(false, true)
-  local max_width_percentage = 0.3
-  local max_width = math.floor(vim.o.columns * max_width_percentage)
-  local counter = 0
-  local messages = {}
-
-  for _, error_message in pairs(error_messages) do
-    local lines = vim.split(error_message.message, "\n")
-
-    -- Concatenate the message with a numbered list format
-    if #error_messages > 1 then
-      counter = counter + 1
-      table.insert(messages, counter .. "." .. table.concat(lines, "\n"))
-    else
-      table.insert(messages, table.concat(lines, "\n"))
-    end
-  end
-
-  local severity
   local error_color = "#db4b4b"
   local warning_color = "#e0af68"
   local info_color = "#0db9d7"
   local hint_color = "#00ff00"
 
+  local severity
   if error_messages[1].severity == 1 then
     severity = "Error"
     vim.api.nvim_set_hl(0, 'TitleColor', { fg = error_color })
@@ -59,8 +38,24 @@ function create_float_window()
     vim.api.nvim_set_hl(0, 'FloatBorder', { fg = hint_color })
   end
 
+  local mouse_pos = vim.fn.getmousepos()
+
+  -- Handle the error by creating a custom window under the cursor
+  local buf = vim.api.nvim_create_buf(false, true)
+  local max_width_percentage = 0.3
+  local max_width = math.ceil(vim.o.columns * max_width_percentage)
+  local messages = {}
+
+  for i, error_message in ipairs(error_messages) do
+    if #error_messages > 1 then
+      table.insert(messages, i .. "." .. error_message.message)
+    else
+      table.insert(messages, error_message.message)
+    end
+  end
+
   -- Calculate the position and size of the float window based on the concatenated messages
-  local num_lines = math.floor(vim.fn.strdisplaywidth(table.concat(messages, "\n")) / max_width + 1)
+  local num_lines = math.ceil(vim.fn.strdisplaywidth(table.concat(messages, "\n")) / max_width)
   local width = math.min(math.floor(vim.fn.strdisplaywidth(table.concat(messages, "\n")) + 2), max_width)
 
   local row_pos
@@ -218,7 +213,7 @@ function show_diagnostics()
   if check_diagnostics() then
     vim.defer_fn(function()
       create_float_window()
-    end, 800)
+    end, 500)
   else
     if error_win and vim.api.nvim_win_is_valid(error_win) then
       close_float_window(error_win)
