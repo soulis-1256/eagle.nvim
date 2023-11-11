@@ -10,7 +10,7 @@ local title_pos = "left"
 
 function create_float_window()
   local status, _ = pcall(vim.api.nvim_win_get_var, error_win, unique_lock)
-  if status then
+  if status or not error_messages or #error_messages == 0 then
     return
   end
 
@@ -89,7 +89,7 @@ function create_float_window()
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
 
-  -- You may want to set a variable to identify this window as an error window
+  --adding a custom value will identify the error window
   vim.api.nvim_win_set_var(win, unique_lock, "")
   error_win = win
 end
@@ -99,8 +99,6 @@ function close_float_window(win)
 
   if vim.api.nvim_win_is_valid(win) and vim.api.nvim_get_current_win() ~= win then
     vim.api.nvim_win_close(win, false)
-    -- Clear the error_messages table
-    error_messages = {}
   end
 end
 
@@ -126,6 +124,8 @@ function check_diagnostics()
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local mouse_pos = vim.fn.getmousepos()
   local diagnostics
+  local prev_errors = error_messages
+  error_messages = {}
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
   for _, extmark in pairs(pos_info.extmarks) do
@@ -133,6 +133,7 @@ function check_diagnostics()
     if string.find(extmark_str, "DiagnosticUnderline") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
 
+      --nested unerline, we can do binary search
       if #diagnostics == 0 then
         local outer_line
         if file_diagnostics then
@@ -154,7 +155,8 @@ function check_diagnostics()
       local expr1, expr2, expr3, expr4
 
       expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
-      expr2 = (diagnostic.lnum <= cursor_pos[1] - 1) and (cursor_pos[1] - 1 <= diagnostic.end_lnum)
+      --expr2 = (diagnostic.lnum <= cursor_pos[1] - 1) and (cursor_pos[1] - 1 <= diagnostic.end_lnum)
+      expr2 = true
 
       if expr1 and expr2 then
         if diagnostic.lnum == diagnostic.end_lnum then
@@ -193,6 +195,10 @@ function check_diagnostics()
     end
   end
 
+  if not vim.deep_equal(prev_errors, error_messages) then
+    return false
+  end
+
   return has_diagnostics
 end
 
@@ -201,13 +207,18 @@ local isMouseMoving = false
 function show_diagnostics()
   isMouseMoving = true
   if vim.fn.mode() ~= 'n' then
+    if error_win and vim.api.nvim_win_is_valid(error_win) then
+      close_float_window(error_win)
+    end
     return
   end
 
   check_mouse_win_collision(vim.api.nvim_get_current_win())
 
   if check_diagnostics() then
-    create_float_window()
+    vim.defer_fn(function()
+      create_float_window()
+    end, 800)
   else
     if error_win and vim.api.nvim_win_is_valid(error_win) then
       close_float_window(error_win)
@@ -270,3 +281,9 @@ vim.loop.new_timer():start(0, detect_scroll_timer, vim.schedule_wrap(function()
 end))
 
 vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
+vim.cmd([[
+  augroup ShowDiagnosticsOnModeChange
+    autocmd!
+    autocmd ModeChanged * call v:lua.show_diagnostics()
+  augroup END
+]])
