@@ -1,12 +1,15 @@
+require("hoverhints.config").setup()
+local config = require("hoverhints.config")
+
 local error_win = nil
-local scrollbar_offset = 1
+local scrollbar_offset = config.options.scrollbar_offset
 local original_win = vim.api.nvim_get_current_win()
 -- variable that distincts this plugin's windows to any other window (like in telescope)
 -- give it any value as long as there are no issues with other windows
 local unique_lock = "1256"
 local error_messages = {}
-local border = "rounded"
-local title_pos = "left"
+local border = config.options.border
+local title_pos = config.options.title_pos
 
 function create_float_window()
   local status, _ = pcall(vim.api.nvim_win_get_var, error_win, unique_lock)
@@ -18,24 +21,40 @@ function create_float_window()
   local warning_color = "#e0af68"
   local info_color = "#0db9d7"
   local hint_color = "#00ff00"
+  local generic_color = "#808080"
 
-  local severity
-  if error_messages[1].severity == 1 then
-    severity = "Error"
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = error_color })
-    vim.api.nvim_set_hl(0, "FloatBorder", { fg = error_color })
-  elseif error_messages[1].severity == 2 then
-    severity = "Warning"
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = warning_color })
-    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = warning_color })
-  elseif error_messages[1].severity == 3 then
-    severity = "Info"
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = info_color })
-    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = info_color })
-  elseif error_messages[1].severity == 4 then
-    severity = "Hint"
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = hint_color })
-    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = hint_color })
+  local severity = error_messages[1].severity
+  local sameSeverity = true
+
+  for _, msg in ipairs(error_messages) do
+    if msg.severity ~= severity then
+      sameSeverity = false
+      break
+    end
+  end
+
+  if not sameSeverity then
+    severity = "Mixed Severity Diagnostics"
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = generic_color })
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = generic_color })
+  else
+    if severity == 1 then
+      severity = "Error"
+      vim.api.nvim_set_hl(0, 'TitleColor', { fg = error_color })
+      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = error_color })
+    elseif severity == 2 then
+      severity = "Warning"
+      vim.api.nvim_set_hl(0, 'TitleColor', { fg = warning_color })
+      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = warning_color })
+    elseif severity == 3 then
+      severity = "Info"
+      vim.api.nvim_set_hl(0, 'TitleColor', { fg = info_color })
+      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = info_color })
+    elseif severity == 4 then
+      severity = "Hint"
+      vim.api.nvim_set_hl(0, 'TitleColor', { fg = hint_color })
+      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = hint_color })
+    end
   end
 
   local mouse_pos = vim.fn.getmousepos()
@@ -54,25 +73,20 @@ function create_float_window()
     end
   end
 
-  -- Calculate the position and size of the float window based on the concatenated messages
   local num_lines = 0
   local max_line_width = 0
 
-  for _, message in ipairs(messages) do
-    local lines = vim.split(message, "\n")
+  for i, _ in ipairs(messages) do
+    messages[i] = formatMessage(messages[i], max_width - scrollbar_offset)
+    local lines = vim.split(messages[i], "\n")
     for _, line in ipairs(lines) do
       local line_width = vim.fn.strdisplaywidth(line)
       max_line_width = math.max(max_line_width, line_width)
-    end
-
-    if max_line_width > max_width then
-      num_lines = num_lines + math.ceil(max_line_width / max_width)
-    else
       num_lines = num_lines + 1
     end
   end
 
-  local width = math.min(max_line_width + 2, max_width)
+  local width = math.min(max_line_width + scrollbar_offset, max_width)
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -94,8 +108,18 @@ function create_float_window()
     focusable = true,
   })
 
-  -- Set the lines in the buffer with the concatenated messages
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, messages)
+  for _, message in ipairs(messages) do
+    local lines = vim.fn.split(message, "\n")
+
+    -- Set lines in the buffer for each message
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+
+    -- Manually remove the first empty line if it exists
+    local existingLines = vim.api.nvim_buf_get_lines(buf, 0, 1, false)
+    if #existingLines > 0 and existingLines[1] == "" then
+      vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
+    end
+  end
 
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
@@ -298,3 +322,26 @@ vim.cmd([[
     autocmd ModeChanged * call v:lua.show_diagnostics()
   augroup END
 ]])
+
+function formatMessage(message, maxWidth)
+  local words = {}
+  local currentWidth = 0
+  local formattedMessage = ""
+
+  for word in message:gmatch("%S+") do
+    local wordWidth = vim.fn.strdisplaywidth(word)
+
+    if currentWidth + wordWidth <= maxWidth then
+      words[#words + 1] = word
+      currentWidth = currentWidth + wordWidth + 1 -- Add 1 for the space between words
+    else
+      formattedMessage = formattedMessage .. table.concat(words, " ") .. "\n"
+      words = { word }
+      currentWidth = wordWidth + 1
+    end
+  end
+
+  formattedMessage = formattedMessage .. table.concat(words, " ")
+
+  return formattedMessage
+end
