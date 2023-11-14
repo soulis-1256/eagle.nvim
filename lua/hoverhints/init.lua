@@ -55,8 +55,7 @@ function M.create_float_window()
 
   -- Handle the error by creating a custom window under the cursor
   local buf = vim.api.nvim_create_buf(false, true)
-  local max_width_factor = config.options.max_width_factor
-  local max_width = math.ceil(vim.o.columns * max_width_factor)
+  local max_width = math.ceil(vim.o.columns * config.options.max_width_factor)
   local messages = {}
 
   for i, error_message in ipairs(error_messages) do
@@ -212,7 +211,10 @@ function M.check_diagnostics()
           end
 
           -- Check if the character is not a whitespace character
-          expr3 = ((string.len(line_content) ~= mouse_pos.column - 1) and mouse_pos.column >= non_whitespace_col)
+          if ((string.len(line_content) ~= mouse_pos.column - 1) and mouse_pos.column >= non_whitespace_col) then
+            expr2 = true
+            expr3 = true
+          end
         end
       end
 
