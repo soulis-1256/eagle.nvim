@@ -3,7 +3,7 @@ The biggest step to bringing **IDE Grade mouse support** *(at least)* to our fav
 
 ### Complete integration with the Diagnostic API
 It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
-
+https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/cfbc6e2d-fc20-4e96-9f6c-b7270fbe4695
 
 ### Different Diagnostics, Different Colors
 This was the polishing touch, a way to make this stand out compared to IDEs.
