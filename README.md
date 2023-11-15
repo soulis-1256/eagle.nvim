@@ -4,15 +4,18 @@ The biggest step to bringing **IDE Grade mouse support** *(at least)* to our fav
 ### Complete integration with the Diagnostic API
 It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
 
-https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/cfbc6e2d-fc20-4e96-9f6c-b7270fbe4695
+[diagnostic_api.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/3f312e43-cba6-433c-b6b1-ee7177c96b85)
 
 ### Different Diagnostics, Different Colors
 This was the polishing touch, a way to make this stand out compared to IDEs.
+
+[colors.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/ab941989-acd4-4728-b24c-8fbfa70e6175)
 
 
 ### Move the Mouse, Change the Message
 Neovim will update the floating diagnostic window, as soon as it detects a change in diagnostics under the current mouse position.
 
+[diff_messages.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/12685b94-1e27-48f9-a437-b44474065f66)
 
 ---
 ### Overview
@@ -21,7 +24,7 @@ Neovim will update the floating diagnostic window, as soon as it detects a chang
 - When the mouse moves, Neovim will be able to detect if the new position has a different diagnostic message, in cases where the same line can have different messages in different places.
 
 ### Notes
-- The plugin has been tested in Neovim version 0.9.4.
+- The plugin has been tested using Neovim version 0.9.4.
 
 ### Installation
 Using [Lazy](https://github.com/folke/lazy.nvim):
