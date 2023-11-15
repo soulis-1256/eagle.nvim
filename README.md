@@ -1,30 +1,48 @@
 # hoverhints.nvim
-This plugin is my attempt to implement, in Neovim, the hover hints functionality provided by other Editors/IDEs like VSCode, Clion etc. When the mouse cursor is on the same line as the Neovim cursor and lsp provides a diagnostic for that line, then a custom float window will appear, which you can interact with, using the mouse. This is demonstrated in the following video (in the last portion of the video I'm scrolling the main view using the mouse wheel, in case you get confused).
+The biggest step to bringing **IDE Grade mouse support** *(at least)* to our favorite Text Editor is finally here. I have prepared the first big update of my plugin, with many integrations and improvements compared to my initial implementation. I am happy to provide an outlook on all the features of this update.
 
-[demo.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/f6332450-119c-4fcc-a3f3-913f541a54ef)
+### Complete integration with the Diagnostic API
+It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
 
-## Installation
-Lazy:
+[diagnostic_api.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/3f312e43-cba6-433c-b6b1-ee7177c96b85)
+
+### Different Diagnostics, Different Colors
+This was the polishing touch, a way to make this stand out compared to IDEs.
+
+[colors.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/ab941989-acd4-4728-b24c-8fbfa70e6175)
+
+
+### Move the Mouse, Change the Message
+Neovim will update the floating diagnostic window, as soon as it detects a change in diagnostics under the current mouse position.
+
+[diff_messages.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/12685b94-1e27-48f9-a437-b44474065f66)
+
+---
+### Overview
+- Neovim will now know if the mouse is over an underlined part of text, including nested underlines. High accurary, high precision, clean user experience.
+- Neovim will know what kind of diagnostic is under the current mouse position, if there are multiple diagnostics on this position, and if all the different diagnostics have mixed severities. The style of the floating window will adapt accordingly.
+- When the mouse moves, Neovim will be able to detect if the new position has a different diagnostic message, in cases where the same line can have different messages in different places.
+
+### Notes
+- The plugin has been tested using Neovim version 0.9.4.
+
+### Installation
+Using [Lazy](https://github.com/folke/lazy.nvim):
 ```
-"soulis-1256/hoverhints.nvim"
+{
+    "soulis-1256/hoverhints.nvim"
+},
 ```
-## Setup
+
+### Setup
+All the configurable options are in the "defaults" table of [config.lua](./lua/hoverhints/config.lua).
 ```
-require("hoverhints")
+require("hoverhints").setup({})
 ```
-## Notes
-- I have not yet found a Neovim plugin that does what I'm trying to achieve here. This is just the first version of what I have in mind and, as you can see in my following [Todo](#todo) list, there is a lot of room for improvement.
-- The plugin has been tested in Neovim v0.9.4. I can't guarantee full compatibility with older versions of the editor.
 
-## Todo
-- [ ] Integrate vim.lsp.buf.hover() in the diagnostics window (definitions, declarations etc)
-- [ ] Try to disable plugins like scrollbars for the diagnostics window (deem scrollbarOffset obsolete)
-- [ ] More integration with lsp, like hovering over the whole scope/underline of a diagnostic (**actively working on this**)
-- [ ] Add config and setup options (like a delay between when the diagnostic window can be reopened on rapid mouse movement)
+### Coming Up
+- Integration with the LSP API, (contents of vim.lsp.buf.hover()). All the info, be it diagnostics, function or class declarations, variable definitions, will be contained inside the floating window of this plugin. This will be the next step of my development, so there is already a lot of work ahead.
 
-## Support
-If you appreciate my work and would like to see more from me in this space, please consider making a financial contribution through PayPal. Your support means a lot. Thank you.
-
-[<img width="250" src="https://github.com/andreostrovsky/donate-with-paypal/blob/master/dark.svg">](https://www.paypal.com/paypalme/soulis1256)
-
-<sub>Many thanks to [andreostrovsky](https://github.com/andreostrovsky/donate-with-paypal) for the donation image.</sub>
+---
+### Support
+You can support me through [PayPal](https://www.paypal.com/paypalme/soulis1256). Besides that, I'll be happy [to receive](https://discord.com/users/319490489411829761) your feedback and/or thoughts about this plugin.
