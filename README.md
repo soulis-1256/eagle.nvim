@@ -28,7 +28,7 @@ Neovim will update the floating diagnostic window, as soon as it detects a chang
 
 ### Installation
 Using [Lazy](https://github.com/folke/lazy.nvim):
-```
+```lua
 {
     "soulis-1256/hoverhints.nvim"
 },
@@ -36,7 +36,7 @@ Using [Lazy](https://github.com/folke/lazy.nvim):
 
 ### Setup
 All the configurable options are in the "defaults" table of [config.lua](./lua/hoverhints/config.lua).
-```
+```lua
 require("hoverhints").setup({})
 ```
 
