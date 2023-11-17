@@ -1,5 +1,5 @@
 # hoverhints.nvim
-The biggest step to bringing **IDE Grade mouse support** *(at least)* to our favorite Text Editor is finally here. I have prepared the first big update of my plugin, with many integrations and improvements compared to my initial implementation. I am happy to provide an outlook on all the features of this update.
+This plugin implements a custom floating window that takes advantage of Neovim's Diagnostic API (Errors, Warnings, Hints). Here is an outlook on all the current features:
 
 ### Complete integration with the Diagnostic API
 It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
