@@ -2,20 +2,20 @@
 This plugin implements a custom floating window that takes advantage of Neovim's Diagnostic API (Errors, Warnings, Hints). Here is an outlook on all the current features:
 
 ### Complete integration with the Diagnostic API
-It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
-![api2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/13b6b29a-e12f-4f9d-9fef-a5fa5478acd0)
+It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API. The result is a great nested diagnostic handling system.
+![api3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/3362d1ea-83a8-44b7-90f7-f5324fd2e713)
 
 ### Different Diagnostics, Different Colors
 This was the polishing touch, a way to make this stand out compared to IDEs.
-![colors2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/75fb3acc-8a7f-4310-8e42-aa77b7136ed3)
+![colors3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/a24e91e3-05c6-4da9-92d8-bb7725bae1a9)
 
 ### Move the Mouse, Change the Message
 Neovim will update the floating diagnostic window, as soon as it detects a change in diagnostics under the current mouse position.
-![mssg2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/cb65c717-d1af-495e-9ba0-bdf313da5d33)
+![mssg3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/605dd43b-078a-46cd-971f-213c7a4c57be)
 
 ---
 ### Overview
-- Neovim will now know if the mouse is over an underlined part of text, including nested underlines. High accurary, high precision, clean user experience.
+- Neovim will now know if the mouse is over an underlined part of text, including nested underlines.
 - Neovim will know what kind of diagnostic is under the current mouse position, if there are multiple diagnostics on this position, and if all the different diagnostics have mixed severities. The style of the floating window will adapt accordingly.
 - When the mouse moves, Neovim will be able to detect if the new position has a different diagnostic message, in cases where the same line can have different messages in different places.
 
