@@ -3,19 +3,15 @@ This plugin implements a custom floating window that takes advantage of Neovim's
 
 ### Complete integration with the Diagnostic API
 It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API.
-
-[diagnostic_api.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/3f312e43-cba6-433c-b6b1-ee7177c96b85)
+![api2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/13b6b29a-e12f-4f9d-9fef-a5fa5478acd0)
 
 ### Different Diagnostics, Different Colors
 This was the polishing touch, a way to make this stand out compared to IDEs.
-
-[colors.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/ab941989-acd4-4728-b24c-8fbfa70e6175)
-
+![colors2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/75fb3acc-8a7f-4310-8e42-aa77b7136ed3)
 
 ### Move the Mouse, Change the Message
 Neovim will update the floating diagnostic window, as soon as it detects a change in diagnostics under the current mouse position.
-
-[diff_messages.webm](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/12685b94-1e27-48f9-a437-b44474065f66)
+![mssg2](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/cb65c717-d1af-495e-9ba0-bdf313da5d33)
 
 ---
 ### Overview
