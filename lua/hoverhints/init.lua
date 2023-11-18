@@ -158,7 +158,7 @@ function M.check_diagnostics()
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
   for _, extmark in pairs(pos_info.extmarks) do
     local extmark_str = vim.inspect(extmark)
-    if string.find(extmark_str, "DiagnosticUnderline") then
+    if string.find(extmark_str, "Diagnostic") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
 
       --binary search on the sorted file_diagnostics table
