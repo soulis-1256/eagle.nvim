@@ -234,7 +234,7 @@ end
 
 local isMouseMoving = false
 
-function show_diagnostics()
+function M.show_diagnostics()
   isMouseMoving = true
   if vim.fn.mode() ~= 'n' then
     if error_win and vim.api.nvim_win_is_valid(error_win) and vim.fn.mode() ~= 'v' then
@@ -289,7 +289,7 @@ local function detectScroll()
 
   if mousePos.line ~= last_line then
     last_line = mousePos.line
-    show_diagnostics()
+    M.show_diagnostics()
   end
 end
 
@@ -307,13 +307,11 @@ vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim
   end
 end))
 
-vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
-vim.cmd([[
-  augroup ShowDiagnosticsOnModeChange
-    autocmd!
-    autocmd ModeChanged * call v:lua.show_diagnostics()
-  augroup END
-]])
+vim.keymap.set('n', '<MouseMove>',  M.show_diagnostics, { silent = true })
+vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
+  group = vim.api.nvim_create_augroup('ShowDiagnosticsOnModeCHange', {}),
+  callback = M.show_diagnostics,
+})
 
 function M.formatMessage(message, maxWidth)
   local words = {}
