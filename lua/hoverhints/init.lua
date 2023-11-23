@@ -281,6 +281,29 @@ function M.check_mouse_win_collision(new_win)
   end
 end
 
+function M.formatMessage(message, maxWidth)
+  local words = {}
+  local currentWidth = 0
+  local formattedMessage = ""
+
+  for word in message:gmatch("%S+") do
+    local wordWidth = vim.fn.strdisplaywidth(word)
+
+    if currentWidth + wordWidth <= maxWidth then
+      words[#words + 1] = word
+      currentWidth = currentWidth + wordWidth + 1 --add 1 for the space between words
+    else
+      formattedMessage = formattedMessage .. table.concat(words, " ") .. "\n"
+      words = { word }
+      currentWidth = wordWidth + 1
+    end
+  end
+
+  formattedMessage = formattedMessage .. table.concat(words, " ")
+
+  return formattedMessage
+end
+
 local last_line = -1
 
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
@@ -307,33 +330,12 @@ vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim
   end
 end))
 
-vim.keymap.set('n', '<MouseMove>',  M.show_diagnostics, { silent = true })
+vim.keymap.set('n', '<MouseMove>', M.show_diagnostics, { silent = true })
+
+--detect mode change, close window if entering insert mode
 vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
-  group = vim.api.nvim_create_augroup('ShowDiagnosticsOnModeCHange', {}),
+  group = vim.api.nvim_create_augroup('ShowDiagnosticsOnModeChange', {}),
   callback = M.show_diagnostics,
 })
-
-function M.formatMessage(message, maxWidth)
-  local words = {}
-  local currentWidth = 0
-  local formattedMessage = ""
-
-  for word in message:gmatch("%S+") do
-    local wordWidth = vim.fn.strdisplaywidth(word)
-
-    if currentWidth + wordWidth <= maxWidth then
-      words[#words + 1] = word
-      currentWidth = currentWidth + wordWidth + 1 --add 1 for the space between words
-    else
-      formattedMessage = formattedMessage .. table.concat(words, " ") .. "\n"
-      words = { word }
-      currentWidth = wordWidth + 1
-    end
-  end
-
-  formattedMessage = formattedMessage .. table.concat(words, " ")
-
-  return formattedMessage
-end
 
 return M
