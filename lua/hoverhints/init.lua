@@ -122,6 +122,32 @@ function M.create_float_window()
   error_win = win
 end
 
+function M.get_lsp_info()
+  local bufnr = vim.api.nvim_get_current_buf()
+  --print(os.clock())
+
+  -- Request hover information from LSP synchronously
+  local result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", vim.lsp.util.make_position_params())
+
+  if not result or vim.tbl_isempty(result) then
+    return
+  end
+
+  local response = result[1]
+  if not (response and response.result and response.result.contents) then
+    return
+  end
+
+  local markdown_lines = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
+  markdown_lines = vim.lsp.util.trim_empty_lines(markdown_lines)
+
+  if vim.tbl_isempty(markdown_lines) then
+    return
+  end
+
+  return markdown_lines
+end
+
 function M.close_float_window(win)
   M.check_mouse_win_collision(win)
 
@@ -242,6 +268,9 @@ function show_diagnostics()
     end
     return
   end
+
+  --local lsp_info = M.get_lsp_info()
+  --print(vim.inspect(lsp_info))
 
   M.check_mouse_win_collision(vim.api.nvim_get_current_win())
 
