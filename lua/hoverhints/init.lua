@@ -66,6 +66,9 @@ function M.create_float_window()
     end
   end
 
+  local lsp_info = vim.inspect(M.get_lsp_info())
+  table.insert(messages, lsp_info)
+
   local num_lines = 0
   local max_line_width = 0
 
@@ -106,12 +109,12 @@ function M.create_float_window()
 
     -- Set lines in the buffer for each message
     vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+  end
 
-    -- Manually remove the first empty line if it exists
-    local existingLines = vim.api.nvim_buf_get_lines(buf, 0, 1, false)
-    if #existingLines > 0 and existingLines[1] == "" then
-      vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
-    end
+  -- Manually remove the first empty line if it exists
+  local existingLines = vim.api.nvim_buf_get_lines(buf, 0, 1, false)
+  if #existingLines > 0 and existingLines[1] == "" then
+    vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
   end
 
   vim.bo[buf].modifiable = false
@@ -124,10 +127,22 @@ end
 
 function M.get_lsp_info()
   local bufnr = vim.api.nvim_get_current_buf()
-  --print(os.clock())
 
-  -- Request hover information from LSP synchronously
-  local result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", vim.lsp.util.make_position_params())
+  local mouse_pos = vim.fn.getmousepos()
+  local line = mouse_pos.line - 1
+  local col = mouse_pos.column - 1
+
+  local position_params = vim.lsp.util.make_position_params()
+
+  position_params.position.line = line
+  position_params.position.character = col
+
+  local result
+
+  -- Execute the LSP request without changing the cursor position
+  vim.api.nvim_win_call(0, function()
+    result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
+  end)
 
   if not result or vim.tbl_isempty(result) then
     return
@@ -269,8 +284,7 @@ function show_diagnostics()
     return
   end
 
-  --local lsp_info = M.get_lsp_info()
-  --print(vim.inspect(lsp_info))
+  --print(vim.inspect(M.get_lsp_info()))
 
   M.check_mouse_win_collision(vim.api.nvim_get_current_win())
 
