@@ -350,7 +350,7 @@ end
 
 local isMouseMoving = false
 
-function show_diagnostics()
+function M.show_diagnostics()
   isMouseMoving = true
   if vim.fn.mode() ~= 'n' then
     if error_win and vim.api.nvim_win_is_valid(error_win) and vim.fn.mode() ~= 'v' then
@@ -399,40 +399,6 @@ function M.check_mouse_win_collision(new_win)
   end
 end
 
-local last_line = -1
-
--- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
-local function detectScroll()
-  local mousePos = vim.fn.getmousepos()
-
-  if mousePos.line ~= last_line then
-    last_line = mousePos.line
-    show_diagnostics()
-  end
-end
-
--- Detect if mouse is idle
-vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.schedule_wrap(function()
-  if isMouseMoving then
-    isMouseMoving = false
-  end
-end))
-
--- Run detectScroll periodically
-vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim.schedule_wrap(function()
-  if (not isMouseMoving) then
-    detectScroll()
-  end
-end))
-
-vim.api.nvim_set_keymap('n', '<MouseMove>', '<cmd>lua show_diagnostics()<CR>', { noremap = true, silent = true })
-vim.cmd([[
-  augroup ShowDiagnosticsOnModeChange
-    autocmd!
-    autocmd ModeChanged * call v:lua.show_diagnostics()
-  augroup END
-]])
-
 function M.formatMessage(message, maxWidth)
   local words = {}
   local currentWidth = 0
@@ -455,5 +421,39 @@ function M.formatMessage(message, maxWidth)
 
   return formattedMessage
 end
+
+local last_line = -1
+
+-- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
+local function detectScroll()
+  local mousePos = vim.fn.getmousepos()
+
+  if mousePos.line ~= last_line then
+    last_line = mousePos.line
+    M.show_diagnostics()
+  end
+end
+
+-- Detect if mouse is idle
+vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.schedule_wrap(function()
+  if isMouseMoving then
+    isMouseMoving = false
+  end
+end))
+
+-- Run detectScroll periodically
+vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim.schedule_wrap(function()
+  if (not isMouseMoving) then
+    detectScroll()
+  end
+end))
+
+vim.keymap.set('n', '<MouseMove>', M.show_diagnostics, { silent = true })
+
+--detect mode change, close window if entering insert mode
+vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
+  group = vim.api.nvim_create_augroup('ShowDiagnosticsOnModeChange', {}),
+  callback = M.show_diagnostics,
+})
 
 return M
