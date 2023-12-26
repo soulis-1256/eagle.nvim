@@ -6,6 +6,12 @@ M.setup = config.setup
 local error_win = nil
 local original_win = vim.api.nvim_get_current_win()
 
+--[[lock variable to prevent multiple windows from opening
+this happens when the mouse moves faster than the time it takes
+for a window to be created, especially during vim.lsp.buf_request_sync()
+that contains vim.wait()]]
+local win_lock = 0
+
 -- variable that distincts this plugin's windows to any other window (like in telescope)
 -- give it any value as long as there are no issues with other windows
 local unique_lock = "1256"
@@ -14,6 +20,11 @@ local error_messages = {}
 function M.create_float_window()
   local status, _ = pcall(vim.api.nvim_win_get_var, error_win, unique_lock)
   if status or not error_messages or #error_messages == 0 then
+    return
+  end
+  if win_lock == 0 then
+    win_lock = 1
+  else
     return
   end
 
@@ -69,7 +80,7 @@ function M.create_float_window()
   local lsp_info = M.get_lsp_info()
 
   if lsp_info then
-    table.insert(messages, "─────────────────────")
+    table.insert(messages, "─────────")
     for _, md_line in ipairs(lsp_info) do
       table.insert(messages, md_line)
     end
@@ -239,6 +250,7 @@ function M.close_float_window(win)
 
   if vim.api.nvim_win_is_valid(win) and vim.api.nvim_get_current_win() ~= win then
     vim.api.nvim_win_close(win, false)
+    win_lock = 0
   end
 end
 
@@ -354,8 +366,6 @@ function M.show_diagnostics()
     end
     return
   end
-
-  --print(vim.inspect(M.get_lsp_info()))
 
   M.check_mouse_win_collision(vim.api.nvim_get_current_win())
 
