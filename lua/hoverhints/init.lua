@@ -145,11 +145,7 @@ function M.get_lsp_info()
 
   local result
 
-  -- Execute the LSP request without changing the cursor position
-  vim.api.nvim_win_call(0, function()
-    isMouseMoving = false
-    result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
-  end)
+  result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
 
   if not result or vim.tbl_isempty(result) then
     return
