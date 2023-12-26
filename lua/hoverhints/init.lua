@@ -66,8 +66,14 @@ function M.create_float_window()
     end
   end
 
-  local lsp_info = vim.inspect(M.get_lsp_info())
-  table.insert(messages, lsp_info)
+  local lsp_info = M.get_lsp_info()
+
+  if lsp_info then
+    table.insert(messages, "─────────────────────")
+    for _, md_line in ipairs(lsp_info) do
+      table.insert(messages, md_line)
+    end
+  end
 
   local num_lines = 0
   local max_line_width = 0
@@ -141,6 +147,7 @@ function M.get_lsp_info()
 
   -- Execute the LSP request without changing the cursor position
   vim.api.nvim_win_call(0, function()
+    isMouseMoving = false
     result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
   end)
 
@@ -153,14 +160,82 @@ function M.get_lsp_info()
     return
   end
 
-  local markdown_lines = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
-  markdown_lines = vim.lsp.util.trim_empty_lines(markdown_lines)
+  local md_lines = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
+  md_lines = vim.lsp.util.trim_empty_lines(md_lines)
 
-  if vim.tbl_isempty(markdown_lines) then
+  if vim.tbl_isempty(md_lines) then
     return
   end
 
-  return markdown_lines
+  --local stylized_md = M.stylizeMarkdown(md_lines)
+
+  return md_lines
+end
+
+function M.stylizeMarkdown(inputString)
+  local matchers = {
+    block = { nil, '```+([a-zA-Z0-9_]*)', '```+' },
+    pre = { nil, '<pre>([a-z0-9]*)', '</pre>' },
+    code = { '', '<code>', '</code>' },
+    text = { 'text', '<text>', '</text>' },
+  }
+
+  local match_begin = function(line)
+    for type, pattern in pairs(matchers) do
+      local ret = line:match(string.format('^%s*%s%s*$', '%%', pattern[2], '%%'))
+      if ret then
+        return {
+          type = type,
+          ft = pattern[1] or ret,
+        }
+      end
+    end
+  end
+
+  local match_end = function(line, match)
+    local pattern = matchers[match.type]
+    return line:match(string.format('^%s*%s%s*$', '%%', pattern[3], '%%'))
+  end
+
+  -- Clean up
+  local contents = inputString:gsub('\r\n', '\n')
+  contents = contents:gsub('\r', '\n')
+  contents = contents:gsub('\t', '  ')
+
+  local stripped = {}
+  local highlights = {}
+  local markdown_lines = {}
+
+  local lines = {}
+  for line in contents:gmatch("[^\r\n]+") do
+    table.insert(lines, line)
+  end
+
+  local i = 1
+  while i <= #lines do
+    local line = lines[i]
+    local match = match_begin(line)
+    if match then
+      local start = #stripped
+      i = i + 1
+      while i <= #lines do
+        line = lines[i]
+        if match_end(line, match) then
+          i = i + 1
+          break
+        end
+        table.insert(stripped, line)
+        i = i + 1
+      end
+      -- Omitted: Logic to handle separators and markdown_lines
+    else
+      -- Omitted: Logic to handle empty lines and separators
+      table.insert(stripped, line)
+      i = i + 1
+    end
+  end
+
+  return table.concat(stripped, '\n')
 end
 
 function M.close_float_window(win)
@@ -197,7 +272,7 @@ function M.check_diagnostics()
   error_messages = {}
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
-  for _, extmark in pairs(pos_info.extmarks) do
+  for _, extmark in ipairs(pos_info.extmarks) do
     local extmark_str = vim.inspect(extmark)
     if string.find(extmark_str, "Diagnostic") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
@@ -225,7 +300,7 @@ function M.check_diagnostics()
   end
 
   if diagnostics and #diagnostics > 0 then
-    for _, diagnostic in pairs(diagnostics) do
+    for _, diagnostic in ipairs(diagnostics) do
       local expr1, expr2, expr3
 
       expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
