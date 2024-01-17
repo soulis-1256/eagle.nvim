@@ -1,4 +1,7 @@
 # hoverhints.nvim
+⚠️ _There are some pretty big features coming. Some progress has been pushed into the "new_features" branch, you can check them out if you want to see what I've been preparing. The development for this plugin has been on hold due to my University exams. Regular commits will return when the exams are over, which should be around early March. Thank you in advance for your patience!_ ⚠️
+
+
 This plugin implements a custom floating window that takes advantage of Neovim's Diagnostic API (Errors, Warnings, Hints). Here is an outlook on all the current features:
 
 ### Complete integration with the Diagnostic API
