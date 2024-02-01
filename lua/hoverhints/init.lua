@@ -4,7 +4,6 @@ local M = {}
 M.setup = config.setup
 
 local error_win = nil
-local original_win = vim.api.nvim_get_current_win()
 
 -- variable that distincts this plugin's windows to any other window (like in telescope)
 -- give it any value as long as there are no issues with other windows
@@ -234,21 +233,27 @@ end
 
 local isMouseMoving = false
 
+local renderDelayTimer = vim.loop.new_timer()
+
+local function startRender()
+  renderDelayTimer:stop()
+
+  renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
+    M.create_float_window()
+  end))
+end
+
 function M.show_diagnostics()
   isMouseMoving = true
   if vim.fn.mode() ~= 'n' then
-    if error_win and vim.api.nvim_win_is_valid(error_win) and vim.fn.mode() ~= 'v' then
+    if error_win and vim.api.nvim_win_is_valid(error_win) and vim.api.nvim_get_current_win() ~= error_win then
       M.close_float_window(error_win)
     end
     return
   end
 
-  M.check_mouse_win_collision(vim.api.nvim_get_current_win())
-
   if M.check_diagnostics() then
-    vim.defer_fn(function()
-      M.create_float_window()
-    end, config.options.render_delay)
+    startRender()
   else
     if error_win and vim.api.nvim_win_is_valid(error_win) then
       M.close_float_window(error_win)
@@ -257,10 +262,6 @@ function M.show_diagnostics()
 end
 
 function M.check_mouse_win_collision(new_win)
-  if (original_win == new_win) then
-    return
-  end
-
   local win_height = vim.api.nvim_win_get_height(new_win)
   local win_width = vim.api.nvim_win_get_width(new_win)
   local win_pad = vim.api.nvim_win_get_position(new_win)
@@ -270,7 +271,7 @@ function M.check_mouse_win_collision(new_win)
   local expr2 = ((mouse_pos.screencol - 1 - config.options.scrollbar_offset) <= (win_pad[2] + win_width))
   local expr3 = ((mouse_pos.screenrow - 1) >= win_pad[1])
   local expr4 = ((mouse_pos.screenrow - 2) <= (win_pad[1] + win_height))
-  
+
   -- check if new_win is the hoverhints window
   local expr5, _ = pcall(vim.api.nvim_win_get_var, new_win, unique_lock)
 
@@ -278,14 +279,9 @@ function M.check_mouse_win_collision(new_win)
   if (expr1 and expr2 and expr3 and expr4) then
     vim.api.nvim_set_current_win(new_win)
   else
-    -- if the mouse pointer is outside the hoverhints window, either close or change focus
+    -- if the mouse pointer is outside the hoverhints window, close it
     if expr5 then
-      if vim.api.nvim_win_is_valid(original_win) then
-        vim.api.nvim_set_current_win(original_win)
-      else
-        -- if some plugin is messing with window ids, close the hoverhints window instead of changing focus
-        vim.api.nvim_win_close(error_win, false)
-      end
+      vim.api.nvim_win_close(error_win, false)
     end
   end
 end
