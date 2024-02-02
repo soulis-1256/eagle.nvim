@@ -1,42 +1,44 @@
-# hoverhints.nvim
+# eagle.nvim
 > [!IMPORTANT]\
-> _There are some pretty big features coming. Some progress has been pushed into the "new_features" branch, you can check them out if you want to see what I've been preparing. The full development of this plugin has been temporarily on hold due to my ongoing University exams, scheduled to conclude around early March. Until then, I will only be handling important issues. Thank you in advance for your patience!_
+> _There are some pretty big features coming (most notably displaying the contents of vim.lsp.buf.hover()). Some progress has been pushed into the "new_features" branch, you can check them out if you want to see what I've been preparing. The full development of this plugin has been temporarily on hold due to my ongoing University exams, scheduled to conclude around early March. Until then, I will only be handling important issues. Thank you in advance for your patience!_
 
-This plugin implements a custom floating window that takes advantage of Neovim's Diagnostic API (Errors, Warnings, Hints). Here is an outlook on all the current features:
+> [!NOTE]\
+> Resembling the abilities of an eagle, this Neovim plugin helps you "soar through" your editing environment. It implements a custom floating window that displays diagnostics (Errors, Warnings, Hints) provided by Neovim's Diagnostic API. The window opens and closes based on precise mouse movement detection.
+
+### Overview
+Enhance your Neovim experience by utilizing the following features:
+- Detect when the mouse hovers over an underlined part of code, including nested code and diagnostics that are in different parts of the same line.
+- Process what kind of diagnostic is under the current mouse position. If there are multiple diagnostics on the same position (ie error and warning), display them all in a numbered list.
 
 ### Complete integration with the Diagnostic API
-It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could make use of the native Diagnostic API. The result is a great nested diagnostic handling system.
+It was a challenge to achieve this functionality, a lot of thinking went into the different ways I could utilize Neovim's Diagnostic API. The result is a robust diagnostic handling system, capable of managing any use case.
 ![api3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/3362d1ea-83a8-44b7-90f7-f5324fd2e713)
 
-### Different Diagnostics, Different Colors
-This was the polishing touch, a way to make this stand out compared to IDEs.
-![colors3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/a24e91e3-05c6-4da9-92d8-bb7725bae1a9)
-
 ### Move the Mouse, Change the Message
-Neovim will update the floating diagnostic window, as soon as it detects a change in diagnostics under the current mouse position.
+Neovim will update the floating window as soon as it detects a change in diagnostics under the current mouse position.
 ![mssg3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/605dd43b-078a-46cd-971f-213c7a4c57be)
 
+### Different Diagnostics, Different Colors
+Compared to contemporary graphical environments, this design features a notably unique quality.
+![colors3](https://github.com/soulis-1256/hoverhints.nvim/assets/118274635/a24e91e3-05c6-4da9-92d8-bb7725bae1a9)
+
 ---
-### Overview
-- Neovim will now know if the mouse is over an underlined part of text, including nested underlines.
-- Neovim will know what kind of diagnostic is under the current mouse position, if there are multiple diagnostics on this position, and if all the different diagnostics have mixed severities. The style of the floating window will adapt accordingly.
-- When the mouse moves, Neovim will be able to detect if the new position has a different diagnostic message, in cases where the same line can have different messages in different places.
 
 ### Notes
-- The plugin has been tested using Neovim version 0.9.4.
+- The plugin has been tested using Neovim versions {0.9.4, 0.9.5}.
 
 ### Installation
 Using [Lazy](https://github.com/folke/lazy.nvim):
 ```lua
 {
-    "soulis-1256/hoverhints.nvim"
+    "soulis-1256/eagle.nvim"
 },
 ```
 
 ### Setup
-All the configurable options are in the "defaults" table of [config.lua](./lua/hoverhints/config.lua).
+All the configurable options are in the "defaults" table of [config.lua](./lua/eagle/config.lua).
 ```lua
-require("hoverhints").setup({})
+require("eagle").setup({})
 ```
 
 ### Coming Up
