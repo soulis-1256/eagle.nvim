@@ -2,7 +2,6 @@
 > [!IMPORTANT]\
 > _There are some pretty big features coming (most notably displaying the contents of vim.lsp.buf.hover()). Some progress has been pushed into the "new_features" branch, you can check them out if you want to see what I've been preparing. The full development of this plugin has been temporarily on hold due to my ongoing University exams, scheduled to conclude around early March. Until then, I will only be handling important issues. Thank you in advance for your patience!_
 
-> [!NOTE]\
 > Resembling the abilities of an eagle, this Neovim plugin helps you "soar through" your editing environment. It implements a custom floating window that displays diagnostics (Errors, Warnings, Hints) provided by Neovim's Diagnostic API. The window opens and closes based on precise mouse movement detection.
 
 ### Overview
@@ -24,8 +23,8 @@ Compared to contemporary graphical environments, this design features a notably 
 
 ---
 
-### Notes
-- The plugin has been tested using Neovim versions {0.9.4, 0.9.5}.
+> [!NOTE]\
+> The plugin has been tested on Neovim versions 0.9.4 and 0.9.5.
 
 ### Installation
 Using [Lazy](https://github.com/folke/lazy.nvim):
