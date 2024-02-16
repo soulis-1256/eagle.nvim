@@ -3,7 +3,7 @@ local config = require("eagle.config")
 local M = {}
 M.setup = config.setup
 
-local error_win = nil
+local eagle_win = nil
 
 --[[lock variable to prevent multiple windows from opening
 this happens when the mouse moves faster than the time it takes
@@ -11,16 +11,10 @@ for a window to be created, especially during vim.lsp.buf_request_sync()
 that contains vim.wait()]]
 local win_lock = 0
 
--- variable that distincts this plugin's windows to any other window (like in telescope)
--- give it any value as long as there are no issues with other windows
-local unique_lock = "1256"
 local error_messages = {}
+local lsp_info = {}
 
-function M.create_float_window()
-  local status, _ = pcall(vim.api.nvim_win_get_var, error_win, unique_lock)
-  if status or not error_messages or #error_messages == 0 then
-    return
-  end
+function M.create_eagle_window()
   if win_lock == 0 then
     win_lock = 1
   else
@@ -76,12 +70,12 @@ function M.create_float_window()
     end
   end
 
-  local lsp_info = M.get_lsp_info()
-
-  if lsp_info then
-    table.insert(messages, "─────────")
-    for _, md_line in ipairs(lsp_info) do
-      table.insert(messages, md_line)
+  if config.options.show_lsp_info then
+    if lsp_info then
+      table.insert(messages, "─────────")
+      for _, md_line in ipairs(lsp_info) do
+        table.insert(messages, md_line)
+      end
     end
   end
 
@@ -136,12 +130,10 @@ function M.create_float_window()
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
 
-  --adding a custom value will identify the error window
-  vim.api.nvim_win_set_var(win, unique_lock, "")
-  error_win = win
+  eagle_win = win
 end
 
-function M.get_lsp_info()
+function M.load_lsp_info()
   local bufnr = vim.api.nvim_get_current_buf()
 
   local mouse_pos = vim.fn.getmousepos()
@@ -166,16 +158,16 @@ function M.get_lsp_info()
     return
   end
 
-  local md_lines = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
-  md_lines = vim.lsp.util.trim_empty_lines(md_lines)
+  local lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
+  lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
 
-  if vim.tbl_isempty(md_lines) then
+  if vim.tbl_isempty(lsp_info) then
     return
   end
 
-  --local stylized_md = M.stylizeMarkdown(md_lines)
+  --local stylized_md = M.stylizeMarkdown(lsp_info)
 
-  return md_lines
+  --return lsp_info
 end
 
 function M.stylizeMarkdown(inputString)
@@ -244,22 +236,22 @@ function M.stylizeMarkdown(inputString)
   return table.concat(stripped, '\n')
 end
 
-function M.close_float_window(win)
-  M.check_mouse_win_collision(win)
+function M.close_eagle_window()
+  M.check_eagle_win_mouse_collision()
 
-  if vim.api.nvim_win_is_valid(win) and vim.api.nvim_get_current_win() ~= win then
-    vim.api.nvim_win_close(win, false)
+  if vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
+    vim.api.nvim_win_close(eagle_win, false)
     win_lock = 0
   end
 end
 
---load all the diagnostics in a sorted table
-local file_diagnostics
+--load and sort all the diagnostics of the current buffer
+local buf_diagnostics
 
-function M.load_diagnostics()
-  file_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
+function M.sort_buf_diagnostics()
+  buf_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
 
-  table.sort(file_diagnostics, function(a, b)
+  table.sort(buf_diagnostics, function(a, b)
     return a.lnum < b.lnum
   end)
 end
@@ -270,7 +262,7 @@ vim.api.nvim_create_autocmd('DiagnosticChanged', {
   end,
 })
 
-function M.check_diagnostics()
+function M.load_diagnostics()
   local has_diagnostics = false
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local mouse_pos = vim.fn.getmousepos()
@@ -284,15 +276,15 @@ function M.check_diagnostics()
     if string.find(extmark_str, "Diagnostic") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
 
-      --binary search on the sorted file_diagnostics table
-      --nested underlines (poor api)
+      --binary search on the sorted buf_diagnostics table
+      --needed for nested underlines (poor API)
       if #diagnostics == 0 then
         local outer_line
-        if file_diagnostics then
-          local low, high = 1, #file_diagnostics
+        if buf_diagnostics then
+          local low, high = 1, #buf_diagnostics
           while low <= high do
             local mid = math.floor((low + high) / 2)
-            local diagnostic = file_diagnostics[mid]
+            local diagnostic = buf_diagnostics[mid]
             if diagnostic.lnum < mouse_pos.line - 1 then
               outer_line = diagnostic.lnum
               low = mid + 1
@@ -308,40 +300,29 @@ function M.check_diagnostics()
 
   if diagnostics and #diagnostics > 0 then
     for _, diagnostic in ipairs(diagnostics) do
-      local expr1, expr2, expr3
+      local isMouseWithinVerticalBounds, isMouseWithinHorizontalBounds
 
-      expr1 = (diagnostic.lnum <= mouse_pos.line - 1) and (mouse_pos.line - 1 <= diagnostic.end_lnum)
+      -- check if the mouse is within the vertical bounds of the diagnostic (single-line or otherwise)
+      isMouseWithinVerticalBounds = (diagnostic.lnum <= mouse_pos.line - 1) and
+          (mouse_pos.line - 1 <= diagnostic.end_lnum)
 
-      if expr1 then
+      if isMouseWithinVerticalBounds then
         if diagnostic.lnum == diagnostic.end_lnum then
-          expr2 = (diagnostic.col <= mouse_pos.column - 1) and (mouse_pos.column <= diagnostic.end_col)
-          expr3 = true
-        elseif diagnostic.lnum == mouse_pos.line - 1 then
-          expr2 = diagnostic.col <= mouse_pos.column - 1
-          expr3 = string.len(vim.fn.getline(mouse_pos.line)) ~= mouse_pos.column - 1
+          -- if its a single-line diagnostic
+
+          -- check if the mouse is within the horizontal bounds of the diagnostic
+          isMouseWithinHorizontalBounds = (diagnostic.col <= mouse_pos.column - 1) and
+              (mouse_pos.column <= diagnostic.end_col)
         else
-          -- Get the line content at the specified line number (mouse_pos.line)
-          local line_content = vim.fn.getline(mouse_pos.line)
-          local non_whitespace_col
+          -- if its a multi-line diagnostic (nested)
 
-          -- Iterate through the characters in the line and find the index of the first non-whitespace character
-          for i = 1, #line_content do
-            local char = line_content:sub(i, i)
-            if char:match("%S") then
-              non_whitespace_col = i
-              break
-            end
-          end
-
-          -- Check if the character is not a whitespace character
-          if ((string.len(line_content) ~= mouse_pos.column - 1) and mouse_pos.column >= non_whitespace_col) then
-            expr2 = true
-            expr3 = true
-          end
+          -- suppose we are always within the horizontal bounds of the diagnostic
+          -- other checks (EOL, whitespace etc) were handled in process_mouse_pos (already optimized)
+          isMouseWithinHorizontalBounds = true
         end
       end
 
-      if expr1 and expr2 and expr3 then
+      if isMouseWithinVerticalBounds and isMouseWithinHorizontalBounds then
         has_diagnostics = true
         table.insert(error_messages, diagnostic)
       end
@@ -349,7 +330,7 @@ function M.check_diagnostics()
   end
 
   if not vim.deep_equal(prev_errors, error_messages) then
-    return false
+    has_diagnostics = false
   end
 
   return has_diagnostics
@@ -363,50 +344,92 @@ local function startRender()
   renderDelayTimer:stop()
 
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
-    M.create_float_window()
+    M.create_eagle_window()
   end))
 end
 
-function M.show_diagnostics()
+function M.is_mouse_on_code()
+  if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() == eagle_win then
+    -- if we are on the eagle window, we should not skip any code
+    return true
+  end
+
+  local mouse_pos = vim.fn.getmousepos()
+
+  -- Get the line content at the specified line number (mouse_pos.line)
+  local line_content = vim.fn.getline(mouse_pos.line)
+
+  -- Check if the character under the mouse cursor is not:
+  -- a) Whitespace
+  -- b) After the last character of the current line
+  -- c) Before the first character of the current line
+  return ((mouse_pos.column ~= string.len(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= vim.fn.wincol())
+end
+
+function M.process_mouse_pos()
   isMouseMoving = true
-  if vim.fn.mode() ~= 'n' then
-    if error_win and vim.api.nvim_win_is_valid(error_win) and vim.api.nvim_get_current_win() ~= error_win then
-      M.close_float_window(error_win)
+
+  -- return if not in normal mode or if the mouse is not hovering over actual code
+  if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
+    renderDelayTimer:stop()
+    if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
+      M.close_eagle_window()
     end
     return
   end
 
-  if M.check_diagnostics() then
-    startRender()
+  if config.options.show_lsp_info then
+    -- TODO: Implement the logic
   else
-    if error_win and vim.api.nvim_win_is_valid(error_win) then
-      M.close_float_window(error_win)
+    if M.load_diagnostics() then
+      startRender()
+    else
+      if eagle_win and vim.api.nvim_win_is_valid(eagle_win) then
+        M.close_eagle_window()
+      end
     end
   end
 end
 
-function M.check_mouse_win_collision(new_win)
-  local win_height = vim.api.nvim_win_get_height(new_win)
-  local win_width = vim.api.nvim_win_get_width(new_win)
-  local win_pad = vim.api.nvim_win_get_position(new_win)
+function M.check_eagle_win_mouse_collision()
+  local win_height = vim.api.nvim_win_get_height(eagle_win)
+  local win_width = vim.api.nvim_win_get_width(eagle_win)
+  local win_pad = vim.api.nvim_win_get_position(eagle_win)
   local mouse_pos = vim.fn.getmousepos()
 
-  local expr1 = ((mouse_pos.screencol - 1) >= win_pad[2])
-  local expr2 = ((mouse_pos.screencol - 1 - config.options.scrollbar_offset) <= (win_pad[2] + win_width))
-  local expr3 = ((mouse_pos.screenrow - 1) >= win_pad[1])
-  local expr4 = ((mouse_pos.screenrow - 2) <= (win_pad[1] + win_height))
+  --[[
+      referenced corner
+      (0,0)
+       ~###########################################
+       #       ^                                  #
+       #       |                                  #
+       #   win_pad[1]                             #
+       #       |       <- win_width ->            #
+       #       v       ***************     ^      #
+       #               *             *     |      #
+       #               *             * win_height #
+       #               *             *     |      #
+       #               ***************     v      #
+       #<- win_pad[2] ->                          #
+       #                                          #
+       #                                          #
+       #                                          #
+       #                                          #
+       ############################################
+  --]]
 
-  -- check if new_win is the eagle window
-  local expr5, _ = pcall(vim.api.nvim_win_get_var, new_win, unique_lock)
+  local isMouseWithinWestSide = (mouse_pos.screencol >= win_pad[2] + 1)
+  local isMouseWithinEastSide = (mouse_pos.screencol <= (win_pad[2] + win_width + config.options.scrollbar_offset + 1))
+  local isMouseWithinNorthSide = (mouse_pos.screenrow >= win_pad[1] + 1)
+  local isMouseWithinSouthSide = (mouse_pos.screenrow <= (win_pad[1] + win_height + 2))
 
   -- if the mouse pointer is inside the eagle window, set it as the focused window
-  if (expr1 and expr2 and expr3 and expr4) then
-    vim.api.nvim_set_current_win(new_win)
+  if isMouseWithinWestSide and isMouseWithinEastSide and isMouseWithinNorthSide and isMouseWithinSouthSide then
+    vim.api.nvim_set_current_win(eagle_win)
   else
     -- if the mouse pointer is outside the eagle window, close it
-    if expr5 then
-      vim.api.nvim_win_close(error_win, false)
-    end
+    vim.api.nvim_win_close(eagle_win, false)
+    win_lock = 0
   end
 end
 
@@ -441,7 +464,7 @@ local function detectScroll()
 
   if mousePos.line ~= last_line then
     last_line = mousePos.line
-    M.show_diagnostics()
+    M.process_mouse_pos()
   end
 end
 
@@ -459,12 +482,12 @@ vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim
   end
 end))
 
-vim.keymap.set('n', '<MouseMove>', M.show_diagnostics, { silent = true })
+vim.keymap.set('n', '<MouseMove>', M.process_mouse_pos, { silent = true })
 
---detect mode change, close window if entering insert mode
+--detect mode change, close eagle window when not in normal mode
 vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
-  group = vim.api.nvim_create_augroup('ShowDiagnosticsOnModeChange', {}),
-  callback = M.show_diagnostics,
+  group = vim.api.nvim_create_augroup('ProcessMousePosOnModeChange', {}),
+  callback = M.process_mouse_pos,
 })
 
 return M

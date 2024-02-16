@@ -1,6 +1,8 @@
 local M = {}
 
 local defaults = {
+  --show lsp info (exact same contents as from vim.lsp.buf.hover()) in the eagle window
+  show_lsp_info = false,
   --Offset that handles possible scrollbar plugins
   --by adding an offset column in the right side of the window.
   --If you don't know what I'm talking about, then
