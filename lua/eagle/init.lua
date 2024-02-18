@@ -14,7 +14,7 @@ local win_lock = 0
 local error_messages = {}
 local lsp_info = {}
 
-function M.create_eagle_window()
+function M.create_eagle_win()
   local severity = ""
   local sameSeverity = true
 
@@ -66,6 +66,7 @@ function M.create_eagle_window()
       table.insert(messages, error_message.message)
     end
   end
+
 
   if config.options.show_lsp_info then
     table.insert(messages, "───────── LSP Info ─────────")
@@ -335,12 +336,15 @@ local function startRender()
   renderDelayTimer:stop()
 
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
+    if #error_messages == 0 and #lsp_info == 0 then
+      return
+    end
     if win_lock == 0 then
       win_lock = 1
     else
       return
     end
-    M.create_eagle_window()
+    M.create_eagle_win()
   end))
 end
 
@@ -383,10 +387,6 @@ function M.process_mouse_pos()
 
     if config.options.show_lsp_info then
       M.load_lsp_info()
-    end
-
-    if vim.tbl_isempty(error_messages) and vim.tbl_isempty(lsp_info) then
-      return
     end
 
     startRender()
