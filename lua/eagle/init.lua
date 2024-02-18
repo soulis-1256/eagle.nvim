@@ -18,8 +18,17 @@ local code_index
 
 local error_messages = {}
 local lsp_info = {}
+local last_mouse_pos
 
 function M.create_eagle_win()
+  -- return if the mouse has moved exactly before the eagle window was to be created
+  -- this can happen because of the render_delay
+  local mouse_pos = vim.fn.getmousepos()
+  if mouse_pos.line ~= last_mouse_pos.line then
+    win_lock = 0
+    return
+  end
+
   local severity = ""
   local sameSeverity = true
 
@@ -95,7 +104,7 @@ function M.create_eagle_win()
 
   local width = math.min(max_line_width + config.options.scrollbar_offset, max_width)
 
-  local mouse_pos = vim.fn.getmousepos()
+
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
     row_pos = mouse_pos.screenrow - num_lines - 3
@@ -340,6 +349,7 @@ local renderDelayTimer = vim.loop.new_timer()
 local function startRender()
   renderDelayTimer:stop()
 
+  last_mouse_pos = vim.fn.getmousepos()
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
     if #error_messages == 0 and #lsp_info == 0 then
       return
@@ -354,11 +364,6 @@ local function startRender()
 end
 
 function M.is_mouse_on_code()
-  if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() == eagle_win then
-    -- if we are on the eagle window, we should not skip any code
-    return true
-  end
-
   local mouse_pos = vim.fn.getmousepos()
 
   -- Get the line content at the specified line number (mouse_pos.line)
@@ -378,8 +383,6 @@ function M.is_mouse_on_code()
 end
 
 function M.process_mouse_pos()
-  isMouseMoving = true
-
   -- return if not in normal mode or if the mouse is not hovering over actual code
   if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
     renderDelayTimer:stop()
@@ -405,6 +408,13 @@ function M.process_mouse_pos()
 end
 
 function M.handle_eagle_focus()
+  -- if the eagle window is not open, return and make sure it can be re-rendered
+  -- this is done with win_lock, to prevent the case where the user presses :q for the eagle window
+  if not eagle_win or not vim.api.nvim_win_is_valid(eagle_win) then
+    win_lock = 0
+    return
+  end
+
   local win_height = vim.api.nvim_win_get_height(eagle_win)
   local win_width = vim.api.nvim_win_get_width(eagle_win)
   local win_pad = vim.api.nvim_win_get_position(eagle_win)
@@ -436,9 +446,11 @@ function M.handle_eagle_focus()
   if isMouseWithinWestSide and isMouseWithinEastSide and isMouseWithinNorthSide and isMouseWithinSouthSide then
     vim.api.nvim_set_current_win(eagle_win)
   else
-    -- if the mouse pointer is outside the eagle window, close it
-    vim.api.nvim_win_close(eagle_win, false)
-    win_lock = 0
+    -- close the window only if the mouse is not moving, or when the mouse is not over actual code
+    if not isMouseMoving or not M.is_mouse_on_code() then
+      vim.api.nvim_win_close(eagle_win, false)
+      win_lock = 0
+    end
   end
 end
 
@@ -465,7 +477,11 @@ function M.formatMessage(message, maxWidth)
   return formattedMessage
 end
 
+-- store the line of the last mouse position, in the case of scrolling
 local last_line = -1
+
+-- a lock variable that makes sure that process_mouse_pos() is only called once, when the mouse goes idle
+local lock_processing = false
 
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
 local function detectScroll()
@@ -473,27 +489,30 @@ local function detectScroll()
 
   if mousePos.line ~= last_line then
     last_line = mousePos.line
-    M.process_mouse_pos()
+    M.handle_eagle_focus()
   end
 end
 
--- Detect if mouse is idle
+-- detect if the mouse goes idle
 vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.schedule_wrap(function()
-  if isMouseMoving then
-    isMouseMoving = false
-  end
-end))
-
--- Run detectScroll periodically
-vim.loop.new_timer():start(0, 3 * (config.options.detect_mouse_timer or 50), vim.schedule_wrap(function()
-  if (not isMouseMoving) then
+  -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
+  if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
     detectScroll()
   end
+
+  if isMouseMoving then
+    M.handle_eagle_focus()
+    isMouseMoving = false
+    lock_processing = false
+  elseif not lock_processing then
+    M.process_mouse_pos()
+    lock_processing = true
+  end
 end))
 
-vim.keymap.set('n', '<MouseMove>', M.process_mouse_pos, { silent = true })
+vim.keymap.set('n', '<MouseMove>', function() isMouseMoving = true end, { silent = true })
 
---detect mode change, close eagle window when not in normal mode
+--detect mode change (close the eagle window when leaving normal mode)
 vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
   group = vim.api.nvim_create_augroup('ProcessMousePosOnModeChange', {}),
   callback = M.process_mouse_pos,

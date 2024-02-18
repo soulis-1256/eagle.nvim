@@ -35,11 +35,11 @@ local defaults = {
   --"rounded": Like "single", but with rounded corners ("╭" etc.).
   --"solid": Adds padding by a single whitespace cell.
   --"shadow": A drop shadow effect by blending with the background.
-  border = "rounded",
+  border = "single",
 
   --the position of the title in the window
   --can be "left", "center" or "right"
-  title_pos = "left",
+  title_pos = "center",
 
   --customize window colors
   --the defaults are inspired by folke/tokyonight.nvim
