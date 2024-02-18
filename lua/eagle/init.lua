@@ -11,6 +11,11 @@ for a window to be created, especially during vim.lsp.buf_request_sync()
 that contains vim.wait()]]
 local win_lock = 0
 
+--- call vim.fn.wincol() once in the beginning
+local index_lock = 0
+--- store the value of the starting column of actual code (skip line number columns etc)
+local code_index
+
 local error_messages = {}
 local lsp_info = {}
 
@@ -68,7 +73,7 @@ function M.create_eagle_win()
   end
 
 
-  if config.options.show_lsp_info then
+  if config.options.show_lsp_info and #lsp_info > 0 then
     table.insert(messages, "───────── LSP Info ─────────")
     for _, md_line in ipairs(lsp_info) do
       table.insert(messages, md_line)
@@ -359,11 +364,17 @@ function M.is_mouse_on_code()
   -- Get the line content at the specified line number (mouse_pos.line)
   local line_content = vim.fn.getline(mouse_pos.line)
 
+  -- this is probably a "hacky" way, but it should work reliably
+  if index_lock == 0 then
+    code_index = vim.fn.wincol()
+    index_lock = 1
+  end
+
   -- Check if the character under the mouse cursor is not:
   -- a) Whitespace
   -- b) After the last character of the current line
   -- c) Before the first character of the current line
-  return ((mouse_pos.column ~= string.len(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= vim.fn.wincol())
+  return ((mouse_pos.column ~= string.len(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index)
 end
 
 function M.process_mouse_pos()
