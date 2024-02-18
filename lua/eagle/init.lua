@@ -15,50 +15,47 @@ local error_messages = {}
 local lsp_info = {}
 
 function M.create_eagle_window()
-  if win_lock == 0 then
-    win_lock = 1
-  else
-    return
-  end
-
-  local severity = error_messages[1].severity
+  local severity = ""
   local sameSeverity = true
 
-  for _, msg in ipairs(error_messages) do
-    if msg.severity ~= severity then
-      sameSeverity = false
-      break
-    end
-  end
+  if #error_messages > 0 then
+    severity = error_messages[1].severity
 
-  if not sameSeverity then
-    severity = "Mixed Severity Diagnostics"
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.generic_color })
-    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.generic_color })
+    for _, msg in ipairs(error_messages) do
+      if msg.severity ~= severity then
+        sameSeverity = false
+        break
+      end
+    end
+
+    if not sameSeverity then
+      severity = "Mixed Severity Diagnostics"
+      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.generic_color })
+      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.generic_color })
+    else
+      if severity == 1 then
+        severity = "Error"
+        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.error_color })
+        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.error_color })
+      elseif severity == 2 then
+        severity = "Warning"
+        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.warning_color })
+        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.warning_color })
+      elseif severity == 3 then
+        severity = "Info"
+        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.info_color })
+        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.info_color })
+      elseif severity == 4 then
+        severity = "Hint"
+        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.hint_color })
+        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.hint_color })
+      end
+    end
   else
-    if severity == 1 then
-      severity = "Error"
-      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.error_color })
-      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.error_color })
-    elseif severity == 2 then
-      severity = "Warning"
-      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.warning_color })
-      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.warning_color })
-    elseif severity == 3 then
-      severity = "Info"
-      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.info_color })
-      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.info_color })
-    elseif severity == 4 then
-      severity = "Hint"
-      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.hint_color })
-      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.hint_color })
-    end
+    vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.lsp_info_color })
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.lsp_info_color })
   end
 
-  local mouse_pos = vim.fn.getmousepos()
-
-  -- Handle the error by creating a custom window under the cursor
-  local buf = vim.api.nvim_create_buf(false, true)
   local max_width = math.ceil(vim.o.columns * config.options.max_width_factor)
   local messages = {}
 
@@ -71,11 +68,9 @@ function M.create_eagle_window()
   end
 
   if config.options.show_lsp_info then
-    if lsp_info then
-      table.insert(messages, "─────────")
-      for _, md_line in ipairs(lsp_info) do
-        table.insert(messages, md_line)
-      end
+    table.insert(messages, "───────── LSP Info ─────────")
+    for _, md_line in ipairs(lsp_info) do
+      table.insert(messages, md_line)
     end
   end
 
@@ -94,12 +89,16 @@ function M.create_eagle_window()
 
   local width = math.min(max_line_width + config.options.scrollbar_offset, max_width)
 
+  local mouse_pos = vim.fn.getmousepos()
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
     row_pos = mouse_pos.screenrow - num_lines - 3
   else
     row_pos = mouse_pos.screenrow
   end
+
+  -- create a buffer with buflisted = false and scratch = true
+  local buf = vim.api.nvim_create_buf(false, true)
 
   local win = vim.api.nvim_open_win(buf, false, {
     title = { { severity, "TitleColor" } },
@@ -134,6 +133,7 @@ function M.create_eagle_window()
 end
 
 function M.load_lsp_info()
+  lsp_info = {}
   local bufnr = vim.api.nvim_get_current_buf()
 
   local mouse_pos = vim.fn.getmousepos()
@@ -158,7 +158,7 @@ function M.load_lsp_info()
     return
   end
 
-  local lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
+  lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
   lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
 
   if vim.tbl_isempty(lsp_info) then
@@ -234,15 +234,6 @@ function M.stylizeMarkdown(inputString)
   end
 
   return table.concat(stripped, '\n')
-end
-
-function M.close_eagle_window()
-  M.check_eagle_win_mouse_collision()
-
-  if vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
-    vim.api.nvim_win_close(eagle_win, false)
-    win_lock = 0
-  end
 end
 
 --load and sort all the diagnostics of the current buffer
@@ -344,6 +335,11 @@ local function startRender()
   renderDelayTimer:stop()
 
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
+    if win_lock == 0 then
+      win_lock = 1
+    else
+      return
+    end
     M.create_eagle_window()
   end))
 end
@@ -373,25 +369,31 @@ function M.process_mouse_pos()
   if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
     renderDelayTimer:stop()
     if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
-      M.close_eagle_window()
+      M.handle_eagle_focus()
     end
     return
   end
 
-  if config.options.show_lsp_info then
-    -- TODO: Implement the logic
-  else
-    if M.load_diagnostics() then
-      startRender()
-    else
-      if eagle_win and vim.api.nvim_win_is_valid(eagle_win) then
-        M.close_eagle_window()
-      end
+  if eagle_win and vim.api.nvim_win_is_valid(eagle_win) then
+    M.handle_eagle_focus()
+  end
+
+  if vim.api.nvim_get_current_win() ~= eagle_win then
+    M.load_diagnostics()
+
+    if config.options.show_lsp_info then
+      M.load_lsp_info()
     end
+
+    if vim.tbl_isempty(error_messages) and vim.tbl_isempty(lsp_info) then
+      return
+    end
+
+    startRender()
   end
 end
 
-function M.check_eagle_win_mouse_collision()
+function M.handle_eagle_focus()
   local win_height = vim.api.nvim_win_get_height(eagle_win)
   local win_width = vim.api.nvim_win_get_width(eagle_win)
   local win_pad = vim.api.nvim_win_get_position(eagle_win)
@@ -411,10 +413,6 @@ function M.check_eagle_win_mouse_collision()
        #               *             *     |      #
        #               ***************     v      #
        #<- win_pad[2] ->                          #
-       #                                          #
-       #                                          #
-       #                                          #
-       #                                          #
        ############################################
   --]]
 
