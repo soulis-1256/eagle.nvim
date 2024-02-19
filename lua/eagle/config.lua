@@ -3,6 +3,7 @@ local M = {}
 local defaults = {
   --show lsp info (exact same contents as from vim.lsp.buf.hover()) in the eagle window
   show_lsp_info = true,
+
   --Offset that handles possible scrollbar plugins
   --by adding an offset column in the right side of the window.
   --If you don't know what I'm talking about, then
@@ -14,6 +15,11 @@ local defaults = {
   --the plugin will use this value to calculate
   --when to wrap words to a new line
   max_width_factor = 0.3,
+
+  --limit the height of the eagle window to vim.o.lines / max_height_factor
+  --it should be any float number in the range [2.5, 5.0]
+  --it doesnt take effect if you set it to anything outside that range
+  max_height_factor = 2.5,
 
   --the delay between the mouse position arriving at a diagnostic
   --and the floating window opening

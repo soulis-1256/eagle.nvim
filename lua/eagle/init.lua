@@ -104,10 +104,16 @@ function M.create_eagle_win()
 
   local width = math.min(max_line_width + config.options.scrollbar_offset, max_width)
 
+  if config.options.max_height_factor < 2.5 or config.options.max_height_factor > 5.0 then
+    config.options.max_height_factor = 2.5
+  end
+
+  local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
+
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
-    row_pos = mouse_pos.screenrow - num_lines - 3
+    row_pos = mouse_pos.screenrow - height - 3
   else
     row_pos = mouse_pos.screenrow
   end
@@ -122,7 +128,7 @@ function M.create_eagle_win()
     row = row_pos - config.options.window_row,
     col = mouse_pos.screencol - config.options.window_col,
     width = width,
-    height = num_lines,
+    height = height,
     style = "minimal",
     border = config.options.border,
     focusable = true,
@@ -262,18 +268,9 @@ function M.sort_buf_diagnostics()
   end)
 end
 
-vim.api.nvim_create_autocmd('DiagnosticChanged', {
-  callback = function(args)
-    M.load_diagnostics()
-  end,
-})
-
 function M.load_diagnostics()
-  local has_diagnostics = false
-  local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local mouse_pos = vim.fn.getmousepos()
   local diagnostics
-  local prev_errors = error_messages
   error_messages = {}
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
@@ -306,40 +303,9 @@ function M.load_diagnostics()
 
   if diagnostics and #diagnostics > 0 then
     for _, diagnostic in ipairs(diagnostics) do
-      local isMouseWithinVerticalBounds, isMouseWithinHorizontalBounds
-
-      -- check if the mouse is within the vertical bounds of the diagnostic (single-line or otherwise)
-      isMouseWithinVerticalBounds = (diagnostic.lnum <= mouse_pos.line - 1) and
-          (mouse_pos.line - 1 <= diagnostic.end_lnum)
-
-      if isMouseWithinVerticalBounds then
-        if diagnostic.lnum == diagnostic.end_lnum then
-          -- if its a single-line diagnostic
-
-          -- check if the mouse is within the horizontal bounds of the diagnostic
-          isMouseWithinHorizontalBounds = (diagnostic.col <= mouse_pos.column - 1) and
-              (mouse_pos.column <= diagnostic.end_col)
-        else
-          -- if its a multi-line diagnostic (nested)
-
-          -- suppose we are always within the horizontal bounds of the diagnostic
-          -- other checks (EOL, whitespace etc) were handled in process_mouse_pos (already optimized)
-          isMouseWithinHorizontalBounds = true
-        end
-      end
-
-      if isMouseWithinVerticalBounds and isMouseWithinHorizontalBounds then
-        has_diagnostics = true
-        table.insert(error_messages, diagnostic)
-      end
+      table.insert(error_messages, diagnostic)
     end
   end
-
-  if not vim.deep_equal(prev_errors, error_messages) then
-    has_diagnostics = false
-  end
-
-  return has_diagnostics
 end
 
 local isMouseMoving = false
@@ -437,7 +403,9 @@ function M.handle_eagle_focus()
        ############################################
   --]]
 
-  local isMouseWithinWestSide = (mouse_pos.screencol >= win_pad[2] + 1)
+  -- west side shouldn't be completely accurate, we need an extra column for better user experience
+  local isMouseWithinWestSide = (mouse_pos.screencol >= win_pad[2])
+
   local isMouseWithinEastSide = (mouse_pos.screencol <= (win_pad[2] + win_width + config.options.scrollbar_offset + 1))
   local isMouseWithinNorthSide = (mouse_pos.screenrow >= win_pad[1] + 1)
   local isMouseWithinSouthSide = (mouse_pos.screenrow <= (win_pad[1] + win_height + 2))
