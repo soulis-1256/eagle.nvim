@@ -103,13 +103,13 @@ function M.create_eagle_win()
   end
 
   local width = math.min(max_line_width + config.options.scrollbar_offset, max_width)
+  width = math.max(width, string.len(severity))
 
   if config.options.max_height_factor < 2.5 or config.options.max_height_factor > 5.0 then
     config.options.max_height_factor = 2.5
   end
 
   local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
-
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -154,8 +154,21 @@ function M.create_eagle_win()
 end
 
 function M.load_lsp_info()
-  lsp_info = {}
-  local bufnr = vim.api.nvim_get_current_buf()
+  -- check if the active clients support textDocument/hover
+  local clients = vim.lsp.get_active_clients()
+  local supports_hover = false
+
+  for _, client in ipairs(clients) do
+    if client.supports_method("textDocument/hover") then
+      supports_hover = true
+      break
+    end
+  end
+
+  if not supports_hover then
+    config.options.show_lsp_info = false
+    return
+  end
 
   local mouse_pos = vim.fn.getmousepos()
   local line = mouse_pos.line - 1
@@ -167,6 +180,7 @@ function M.load_lsp_info()
   position_params.position.character = col
 
   local result
+  local bufnr = vim.api.nvim_get_current_buf()
 
   result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
 
@@ -178,6 +192,8 @@ function M.load_lsp_info()
   if not (response and response.result and response.result.contents) then
     return
   end
+
+  lsp_info = {}
 
   lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
   lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)

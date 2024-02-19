@@ -4,8 +4,8 @@
 ### TODO
 - [x] Optimization (skip when mouse is not over any code)
 - [ ] Fix config.options.detect_mouse_timer being nil initially
-- [ ] Limit window size when the height exceeds half of the screen's height
-- [ ] Fix the title sometimes being smaller than the contents of the window
+- [x] Limit window size when the height exceeds half of the screen's height
+- [x] Fix the title sometimes being smaller than the contents of the window
 - [ ] Display the exact contents of vim.lsp.buf.hover() (80% there, missing coloring etc)
 - [ ] Keyboard workflow?
 ### Support
