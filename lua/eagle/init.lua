@@ -303,7 +303,31 @@ function M.load_diagnostics()
 
   if diagnostics and #diagnostics > 0 then
     for _, diagnostic in ipairs(diagnostics) do
-      table.insert(error_messages, diagnostic)
+      local isMouseWithinVerticalBounds, isMouseWithinHorizontalBounds
+
+      -- check if the mouse is within the vertical bounds of the diagnostic (single-line or otherwise)
+      isMouseWithinVerticalBounds = (diagnostic.lnum <= mouse_pos.line - 1) and
+          (mouse_pos.line - 1 <= diagnostic.end_lnum)
+
+      if isMouseWithinVerticalBounds then
+        if diagnostic.lnum == diagnostic.end_lnum then
+          -- if its a single-line diagnostic
+
+          -- check if the mouse is within the horizontal bounds of the diagnostic
+          isMouseWithinHorizontalBounds = (diagnostic.col <= mouse_pos.column - 1) and
+              (mouse_pos.column <= diagnostic.end_col)
+        else
+          -- if its a multi-line diagnostic (nested)
+
+          -- suppose we are always within the horizontal bounds of the diagnostic
+          -- other checks (EOL, whitespace etc) were handled in process_mouse_pos (already optimized)
+          isMouseWithinHorizontalBounds = true
+        end
+      end
+
+      if isMouseWithinVerticalBounds and isMouseWithinHorizontalBounds then
+        table.insert(error_messages, diagnostic)
+      end
     end
   end
 end
