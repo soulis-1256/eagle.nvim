@@ -4,6 +4,7 @@ local M = {}
 M.setup = config.setup
 
 local eagle_win = nil
+local eagle_buf = nil
 
 --[[lock variable to prevent multiple windows from opening
 this happens when the mouse moves faster than the time it takes
@@ -70,7 +71,6 @@ function M.create_eagle_win()
     vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.lsp_info_color })
   end
 
-  local max_width = math.ceil(vim.o.columns * config.options.max_width_factor)
   local messages = {}
 
   for i, error_message in ipairs(error_messages) do
@@ -89,27 +89,31 @@ function M.create_eagle_win()
     end
   end
 
-  local num_lines = 0
-  local max_line_width = 0
-
-  for i, _ in ipairs(messages) do
-    messages[i] = M.formatMessage(messages[i], max_width - config.options.scrollbar_offset)
-    local lines = vim.split(messages[i], "\n")
-    for _, line in ipairs(lines) do
-      local line_width = vim.fn.strdisplaywidth(line)
-      max_line_width = math.max(max_line_width, line_width)
-      num_lines = num_lines + 1
-    end
-  end
-
-  local width = math.min(max_line_width + config.options.scrollbar_offset, max_width)
-  width = math.max(width, string.len(severity))
-
   if config.options.max_height_factor < 2.5 or config.options.max_height_factor > 5.0 then
     config.options.max_height_factor = 2.5
   end
 
+  -- create a buffer with buflisted = false and scratch = true
+  eagle_buf = vim.api.nvim_create_buf(false, true)
+
+  vim.bo[eagle_buf].modifiable = true
+  vim.bo[eagle_buf].readonly = false
+  vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+
+  -- Now calculate the number of lines in the buffer
+  local num_lines = vim.api.nvim_buf_line_count(eagle_buf)
+
+  -- Iterate over each line in the buffer and calculate max_line_width
+  local lines = vim.api.nvim_buf_get_lines(eagle_buf, 0, -1, false)
+  local max_line_width = 0
+  for _, line in ipairs(lines) do
+    local line_width = vim.fn.strdisplaywidth(line)
+    max_line_width = math.max(max_line_width, line_width)
+  end
+
+  -- Calculate the window height based on the number of lines in the buffer
   local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
+  local width = math.max(max_line_width + config.options.scrollbar_offset, string.len(severity))
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -118,10 +122,7 @@ function M.create_eagle_win()
     row_pos = mouse_pos.screenrow
   end
 
-  -- create a buffer with buflisted = false and scratch = true
-  local buf = vim.api.nvim_create_buf(false, true)
-
-  local win = vim.api.nvim_open_win(buf, false, {
+  local win = vim.api.nvim_open_win(eagle_buf, false, {
     title = { { severity, "TitleColor" } },
     title_pos = config.options.title_pos,
     relative = 'editor',
@@ -133,22 +134,6 @@ function M.create_eagle_win()
     border = config.options.border,
     focusable = true,
   })
-
-  for _, message in ipairs(messages) do
-    local lines = vim.fn.split(message, "\n")
-
-    -- Set lines in the buffer for each message
-    vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
-  end
-
-  -- Manually remove the first empty line if it exists
-  local existingLines = vim.api.nvim_buf_get_lines(buf, 0, 1, false)
-  if #existingLines > 0 and existingLines[1] == "" then
-    vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
-  end
-
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].readonly = true
 
   eagle_win = win
 end
@@ -207,76 +192,6 @@ function M.load_lsp_info()
   if vim.tbl_isempty(lsp_info) then
     return
   end
-
-  --local stylized_md = M.stylizeMarkdown(lsp_info)
-
-  --return lsp_info
-end
-
-function M.stylizeMarkdown(inputString)
-  local matchers = {
-    block = { nil, '```+([a-zA-Z0-9_]*)', '```+' },
-    pre = { nil, '<pre>([a-z0-9]*)', '</pre>' },
-    code = { '', '<code>', '</code>' },
-    text = { 'text', '<text>', '</text>' },
-  }
-
-  local match_begin = function(line)
-    for type, pattern in pairs(matchers) do
-      local ret = line:match(string.format('^%s*%s%s*$', '%%', pattern[2], '%%'))
-      if ret then
-        return {
-          type = type,
-          ft = pattern[1] or ret,
-        }
-      end
-    end
-  end
-
-  local match_end = function(line, match)
-    local pattern = matchers[match.type]
-    return line:match(string.format('^%s*%s%s*$', '%%', pattern[3], '%%'))
-  end
-
-  -- Clean up
-  local contents = inputString:gsub('\r\n', '\n')
-  contents = contents:gsub('\r', '\n')
-  contents = contents:gsub('\t', '  ')
-
-  local stripped = {}
-  local highlights = {}
-  local markdown_lines = {}
-
-  local lines = {}
-  for line in contents:gmatch("[^\r\n]+") do
-    table.insert(lines, line)
-  end
-
-  local i = 1
-  while i <= #lines do
-    local line = lines[i]
-    local match = match_begin(line)
-    if match then
-      local start = #stripped
-      i = i + 1
-      while i <= #lines do
-        line = lines[i]
-        if match_end(line, match) then
-          i = i + 1
-          break
-        end
-        table.insert(stripped, line)
-        i = i + 1
-      end
-      -- Omitted: Logic to handle separators and markdown_lines
-    else
-      -- Omitted: Logic to handle empty lines and separators
-      table.insert(stripped, line)
-      i = i + 1
-    end
-  end
-
-  return table.concat(stripped, '\n')
 end
 
 --load and sort all the diagnostics of the current buffer
