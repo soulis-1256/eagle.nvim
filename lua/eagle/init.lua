@@ -153,21 +153,26 @@ function M.create_eagle_win()
   eagle_win = win
 end
 
+--check if the active clients support textDocument/hover
+--needed to check only once and not all the time
+local supports_hover = false
+
 function M.load_lsp_info()
-  -- check if the active clients support textDocument/hover
-  local clients = vim.lsp.get_active_clients()
-  local supports_hover = false
+  if supports_hover == false then
+    -- check if the active clients support textDocument/hover
+    local clients = vim.lsp.get_active_clients()
 
-  for _, client in ipairs(clients) do
-    if client.supports_method("textDocument/hover") then
-      supports_hover = true
-      break
+    for _, client in ipairs(clients) do
+      if client.supports_method("textDocument/hover") then
+        supports_hover = true
+        break
+      end
     end
-  end
 
-  if not supports_hover then
-    config.options.show_lsp_info = false
-    return
+    if not supports_hover then
+      config.options.show_lsp_info = false
+      return
+    end
   end
 
   local mouse_pos = vim.fn.getmousepos()

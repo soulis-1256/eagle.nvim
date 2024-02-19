@@ -6,7 +6,7 @@
 - [ ] Fix config.options.detect_mouse_timer being nil initially
 - [x] Limit window size when the height exceeds half of the screen's height
 - [x] Fix the title sometimes being smaller than the contents of the window
-- [ ] Display the exact contents of vim.lsp.buf.hover() (80% there, missing coloring etc)
+- [ ] Display the exact contents of vim.lsp.buf.hover() (80% there, need to improve visuals)
 - [ ] Keyboard workflow?
 ### Support
 You can support me by donating through [PayPal](https://www.paypal.com/paypalme/soulis1256) and by providing your feedback. You can find me on [Discord](https://discord.com/users/319490489411829761).
