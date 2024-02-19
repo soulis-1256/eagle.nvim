@@ -158,8 +158,9 @@ end
 local supports_hover = false
 
 function M.load_lsp_info()
+  -- check if the active clients support textDocument/hover
+  -- and do it once, in the beginning
   if supports_hover == false then
-    -- check if the active clients support textDocument/hover
     local clients = vim.lsp.get_active_clients()
 
     for _, client in ipairs(clients) do
@@ -189,6 +190,8 @@ function M.load_lsp_info()
 
   result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
 
+  lsp_info = {}
+
   if not result or vim.tbl_isempty(result) then
     return
   end
@@ -197,8 +200,6 @@ function M.load_lsp_info()
   if not (response and response.result and response.result.contents) then
     return
   end
-
-  lsp_info = {}
 
   lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
   lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
