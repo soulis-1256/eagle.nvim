@@ -6,8 +6,8 @@
 - [x] Limit window size when the height exceeds half of the screen's height
 - [x] Fix the title sometimes being smaller than the contents of the window
 - [x] Display the exact contents of vim.lsp.buf.hover()
+- [x] Fix vim.lsp.util.stylize_markdown needing non-readonly and modifiable buffer
 - [ ] Display "LSP Info" in the whole window
-- [ ] Fix vim.lsp.util.stylize_markdown needing non-readonly and modifiable buffer
 - [ ] Fix config.options.detect_mouse_timer being nil initially
 - [ ] Keyboard workflow?
 ### Support

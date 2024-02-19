@@ -25,7 +25,7 @@ function M.create_eagle_win()
   -- return if the mouse has moved exactly before the eagle window was to be created
   -- this can happen because of the render_delay
   local mouse_pos = vim.fn.getmousepos()
-  if mouse_pos.line ~= last_mouse_pos.line then
+  if not vim.deep_equal(mouse_pos, last_mouse_pos) then
     win_lock = 0
     return
   end
@@ -94,11 +94,15 @@ function M.create_eagle_win()
   end
 
   -- create a buffer with buflisted = false and scratch = true
-  eagle_buf = vim.api.nvim_create_buf(false, true)
+  if not eagle_buf then
+    eagle_buf = vim.api.nvim_create_buf(false, true)
+  end
 
   vim.bo[eagle_buf].modifiable = true
   vim.bo[eagle_buf].readonly = false
   vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+  vim.bo[eagle_buf].modifiable = false
+  vim.bo[eagle_buf].readonly = true
 
   -- Now calculate the number of lines in the buffer
   local num_lines = vim.api.nvim_buf_line_count(eagle_buf)

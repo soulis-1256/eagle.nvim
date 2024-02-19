@@ -10,12 +10,6 @@ local defaults = {
   --you don't need this option.
   scrollbar_offset = 0,
 
-  --how much of the total editor width the
-  --floating window can take
-  --the plugin will use this value to calculate
-  --when to wrap words to a new line
-  max_width_factor = 0.3,
-
   --limit the height of the eagle window to vim.o.lines / max_height_factor
   --it should be any float number in the range [2.5, 5.0]
   --it doesnt take effect if you set it to anything outside that range
