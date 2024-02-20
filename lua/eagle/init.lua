@@ -111,7 +111,8 @@ function M.create_eagle_win()
 
   -- Calculate the window height based on the number of lines in the buffer
   local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
-  local width = math.max(max_line_width + config.options.scrollbar_offset, vim.fn.strdisplaywidth(config.options.title))
+  local width = math.max(max_line_width + config.options.scrollbar_offset + 1,
+    vim.fn.strdisplaywidth(config.options.title))
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -138,8 +139,6 @@ function M.create_eagle_win()
 end
 
 function M.load_lsp_info()
-  lsp_info = {}
-
   --Ideally we need this binded with Event(s)
   --As of right now, WinEnter is a partial solution,
   --but it's not enough (for buffers etc).
@@ -192,20 +191,23 @@ vim.api.nvim_create_autocmd('DiagnosticChanged', {
   end,
 })
 
+-- bool variable to lock when the buffer doesn't support textDocument/hover
+local buf_supports_lsp_method = false
+
 function M.check_lsp_support()
-  config.options.show_lsp_info = false
+  buf_supports_lsp_method = false
 
   -- check if the active clients support textDocument/hover
   local clients = vim.lsp.buf_get_clients()
 
   for _, client in ipairs(clients) do
     if client.supports_method("textDocument/hover") then
-      config.options.show_lsp_info = true
+      buf_supports_lsp_method = true
       break
     end
   end
 
-  return config.options.show_lsp_info
+  return buf_supports_lsp_method
 end
 
 function M.load_diagnostics()
@@ -326,7 +328,8 @@ function M.process_mouse_pos()
   if vim.api.nvim_get_current_win() ~= eagle_win then
     M.load_diagnostics()
 
-    if config.options.show_lsp_info then
+    lsp_info = {}
+    if config.options.show_lsp_info and M.check_lsp_support() then
       M.load_lsp_info()
     end
 
