@@ -92,7 +92,9 @@ function M.create_eagle_win()
 
   vim.bo[eagle_buf].modifiable = true
   vim.bo[eagle_buf].readonly = false
+
   vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+
   vim.bo[eagle_buf].modifiable = false
   vim.bo[eagle_buf].readonly = true
 
@@ -135,27 +137,15 @@ function M.create_eagle_win()
   })
 end
 
---check if the active clients support textDocument/hover
---needed to check only once and not all the time
-local supports_hover = false
-
 function M.load_lsp_info()
-  -- check if the active clients support textDocument/hover
-  -- and do it once, in the beginning
-  if supports_hover == false then
-    local clients = vim.lsp.get_active_clients()
+  lsp_info = {}
 
-    for _, client in ipairs(clients) do
-      if client.supports_method("textDocument/hover") then
-        supports_hover = true
-        break
-      end
-    end
-
-    if not supports_hover then
-      config.options.show_lsp_info = false
-      return
-    end
+  --Ideally we need this binded with Event(s)
+  --As of right now, WinEnter is a partial solution,
+  --but it's not enough (for buffers etc).
+  --BufEnter doesn't seem to work properly
+  if not M.check_lsp_support() then
+    return
   end
 
   local mouse_pos = vim.fn.getmousepos()
@@ -172,8 +162,6 @@ function M.load_lsp_info()
 
   result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
 
-  lsp_info = {}
-
   if not result or vim.tbl_isempty(result) then
     return
   end
@@ -185,10 +173,6 @@ function M.load_lsp_info()
 
   lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
   lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
-
-  if vim.tbl_isempty(lsp_info) then
-    return
-  end
 end
 
 --load and sort all the diagnostics of the current buffer
@@ -207,6 +191,22 @@ vim.api.nvim_create_autocmd('DiagnosticChanged', {
     M.sort_buf_diagnostics()
   end,
 })
+
+function M.check_lsp_support()
+  config.options.show_lsp_info = false
+
+  -- check if the active clients support textDocument/hover
+  local clients = vim.lsp.buf_get_clients()
+
+  for _, client in ipairs(clients) do
+    if client.supports_method("textDocument/hover") then
+      config.options.show_lsp_info = true
+      break
+    end
+  end
+
+  return config.options.show_lsp_info
+end
 
 function M.load_diagnostics()
   local mouse_pos = vim.fn.getmousepos()
@@ -281,9 +281,6 @@ local function startRender()
 
   last_mouse_pos = vim.fn.getmousepos()
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
-    if #error_messages == 0 and #lsp_info == 0 then
-      return
-    end
     if win_lock == 0 then
       win_lock = 1
     else
@@ -333,6 +330,10 @@ function M.process_mouse_pos()
       M.load_lsp_info()
     end
 
+    if #error_messages == 0 and #lsp_info == 0 then
+      return
+    end
+
     startRender()
   end
 end
@@ -374,9 +375,12 @@ function M.handle_eagle_focus()
   local isMouseWithinNorthSide = (mouse_pos.screenrow >= win_pad[1] + 1)
   local isMouseWithinSouthSide = (mouse_pos.screenrow <= (win_pad[1] + win_height + 2))
 
-  -- if the mouse pointer is inside the eagle window, set it as the focused window
+  -- if the mouse pointer is inside the eagle window and it's not already in focus, set it as the focused window
   if isMouseWithinWestSide and isMouseWithinEastSide and isMouseWithinNorthSide and isMouseWithinSouthSide then
-    vim.api.nvim_set_current_win(eagle_win)
+    if vim.api.nvim_get_current_win() ~= eagle_win then
+      vim.api.nvim_set_current_win(eagle_win)
+      vim.api.nvim_win_set_cursor(eagle_win, { 1, 0 })
+    end
   else
     -- close the window only if the mouse is not moving, or when the mouse is not over actual code
     if not isMouseMoving or not M.is_mouse_on_code() then
@@ -442,7 +446,9 @@ vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.sched
   end
 end))
 
-vim.keymap.set('n', '<MouseMove>', function() isMouseMoving = true end, { silent = true })
+vim.keymap.set('n', '<MouseMove>', function()
+  isMouseMoving = true
+end, { silent = true })
 
 --detect mode change (close the eagle window when leaving normal mode)
 vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
