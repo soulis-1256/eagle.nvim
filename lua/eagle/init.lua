@@ -191,23 +191,17 @@ vim.api.nvim_create_autocmd('DiagnosticChanged', {
   end,
 })
 
--- bool variable to lock when the buffer doesn't support textDocument/hover
-local buf_supports_lsp_method = false
-
 function M.check_lsp_support()
-  buf_supports_lsp_method = false
-
   -- check if the active clients support textDocument/hover
   local clients = vim.lsp.buf_get_clients()
 
   for _, client in ipairs(clients) do
     if client.supports_method("textDocument/hover") then
-      buf_supports_lsp_method = true
-      break
+      return true
     end
   end
 
-  return buf_supports_lsp_method
+  return false
 end
 
 function M.load_diagnostics()
