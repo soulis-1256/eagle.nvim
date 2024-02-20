@@ -79,8 +79,27 @@ function M.create_eagle_win()
     else
       table.insert(messages, error_message.message)
     end
-  end
 
+    local code = error_message.code
+    if code then
+      table.insert(messages, "Code: " .. error_message.code)
+    end
+
+    local source = error_message.source
+    if source then
+      table.insert(messages, "Source: " .. error_message.source)
+    end
+
+    local href = error_message.user_data and
+        error_message.user_data.lsp and error_message.user_data.lsp.codeDescription and
+        error_message.user_data.lsp.codeDescription.href
+
+    if href then
+      table.insert(messages, "href: " .. error_message.user_data.lsp.codeDescription.href)
+    end
+
+    table.insert(messages, "")
+  end
 
   if config.options.show_lsp_info and #lsp_info > 0 then
     if #error_messages > 0 then
