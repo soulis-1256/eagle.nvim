@@ -7,7 +7,7 @@
 - [x] Fix the title sometimes being smaller than the contents of the window
 - [x] Display the exact contents of vim.lsp.buf.hover()
 - [x] Fix vim.lsp.util.stylize_markdown needing non-readonly and modifiable buffer
-- [ ] Display "LSP Info" in the whole window
+- [x] Display "LSP Info" in the whole window (replaced with "# LSP Info" and "---", handled as markdown)
 - [ ] Fix config.options.detect_mouse_timer being nil initially
 - [ ] Keyboard workflow?
 ### Support

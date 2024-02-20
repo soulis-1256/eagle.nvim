@@ -75,7 +75,7 @@ function M.create_eagle_win()
 
   for i, error_message in ipairs(error_messages) do
     if #error_messages > 1 then
-      table.insert(messages, i .. "." .. error_message.message)
+      table.insert(messages, i .. ". " .. error_message.message)
     else
       table.insert(messages, error_message.message)
     end
@@ -83,7 +83,11 @@ function M.create_eagle_win()
 
 
   if config.options.show_lsp_info and #lsp_info > 0 then
-    table.insert(messages, "───────── LSP Info ─────────")
+    if #error_messages > 0 then
+      table.insert(messages, "---")
+    end
+    table.insert(messages, "# LSP Info")
+    table.insert(messages, "")
     for _, md_line in ipairs(lsp_info) do
       table.insert(messages, md_line)
     end
@@ -107,7 +111,7 @@ function M.create_eagle_win()
   -- Now calculate the number of lines in the buffer
   local num_lines = vim.api.nvim_buf_line_count(eagle_buf)
 
-  -- Iterate over each line in the buffer and calculate max_line_width
+  -- Iterate over each line in the buffer to find the max width
   local lines = vim.api.nvim_buf_get_lines(eagle_buf, 0, -1, false)
   local max_line_width = 0
   for _, line in ipairs(lines) do
@@ -126,7 +130,7 @@ function M.create_eagle_win()
     row_pos = mouse_pos.screenrow
   end
 
-  local win = vim.api.nvim_open_win(eagle_buf, false, {
+  eagle_win = vim.api.nvim_open_win(eagle_buf, false, {
     title = { { severity, "TitleColor" } },
     title_pos = config.options.title_pos,
     relative = 'editor',
@@ -138,8 +142,6 @@ function M.create_eagle_win()
     border = config.options.border,
     focusable = true,
   })
-
-  eagle_win = win
 end
 
 --check if the active clients support textDocument/hover
@@ -208,6 +210,12 @@ function M.sort_buf_diagnostics()
     return a.lnum < b.lnum
   end)
 end
+
+vim.api.nvim_create_autocmd('DiagnosticChanged', {
+  callback = function()
+    M.sort_buf_diagnostics()
+  end,
+})
 
 function M.load_diagnostics()
   local mouse_pos = vim.fn.getmousepos()
