@@ -37,18 +37,18 @@ local defaults = {
   --"shadow": A drop shadow effect by blending with the background.
   border = "single",
 
-  --the position of the title in the window
+  -- the title of the window
+  title = "",
+
+  --the position of the title
   --can be "left", "center" or "right"
   title_pos = "center",
 
-  --customize window colors
-  --the defaults are inspired by folke/tokyonight.nvim
-  error_color = "#db4b4b",
-  warning_color = "#e0af68",
-  info_color = "#0db9d7",
-  hint_color = "#1abc9c",
-  generic_color = "#808080",
-  lsp_info_color = "#c8c8c8",
+  -- window title color
+  title_color = "#8AAAE5",
+
+  -- window border color
+  border_color = "#8AAAE5",
 }
 
 M.options = {}

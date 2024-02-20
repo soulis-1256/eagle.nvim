@@ -30,47 +30,6 @@ function M.create_eagle_win()
     return
   end
 
-  local severity = ""
-  local sameSeverity = true
-
-  if #error_messages > 0 then
-    severity = error_messages[1].severity
-
-    for _, msg in ipairs(error_messages) do
-      if msg.severity ~= severity then
-        sameSeverity = false
-        break
-      end
-    end
-
-    if not sameSeverity then
-      severity = "Mixed Severity Diagnostics"
-      vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.generic_color })
-      vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.generic_color })
-    else
-      if severity == 1 then
-        severity = "Error"
-        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.error_color })
-        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.error_color })
-      elseif severity == 2 then
-        severity = "Warning"
-        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.warning_color })
-        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.warning_color })
-      elseif severity == 3 then
-        severity = "Info"
-        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.info_color })
-        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.info_color })
-      elseif severity == 4 then
-        severity = "Hint"
-        vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.hint_color })
-        vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.hint_color })
-      end
-    end
-  else
-    vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.lsp_info_color })
-    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.lsp_info_color })
-  end
-
   local messages = {}
 
   for i, error_message in ipairs(error_messages) do
@@ -80,16 +39,25 @@ function M.create_eagle_win()
       table.insert(messages, error_message.message)
     end
 
-    local code = error_message.code
-    if code then
-      table.insert(messages, "Code: " .. error_message.code)
+    local severity = error_message.severity
+
+    if severity == 1 then
+      severity = "Error"
+    elseif severity == 2 then
+      severity = "Warning"
+    elseif severity == 3 then
+      severity = "Info"
+    elseif severity == 4 then
+      severity = "Hint"
     end
 
-    local source = error_message.source
-    if source then
-      table.insert(messages, "Source: " .. error_message.source)
-    end
+    table.insert(messages, "severity: " .. severity)
 
+    table.insert(messages, "code: " .. error_message.code)
+
+    table.insert(messages, "source: " .. error_message.source)
+
+    -- Not every diagnostic will provide a hypertext reference, unlike the code, source, severity and message fields
     local href = error_message.user_data and
         error_message.user_data.lsp and error_message.user_data.lsp.codeDescription and
         error_message.user_data.lsp.codeDescription.href
@@ -98,6 +66,7 @@ function M.create_eagle_win()
       table.insert(messages, "href: " .. error_message.user_data.lsp.codeDescription.href)
     end
 
+    -- newline
     table.insert(messages, "")
   end
 
@@ -140,7 +109,7 @@ function M.create_eagle_win()
 
   -- Calculate the window height based on the number of lines in the buffer
   local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
-  local width = math.max(max_line_width + config.options.scrollbar_offset, string.len(severity))
+  local width = math.max(max_line_width + config.options.scrollbar_offset, vim.fn.strdisplaywidth(config.options.title))
 
   local row_pos
   if mouse_pos.screenrow > math.floor(vim.o.lines / 2) then
@@ -149,8 +118,11 @@ function M.create_eagle_win()
     row_pos = mouse_pos.screenrow
   end
 
+  vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.title_color })
+  vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.border_color })
+
   eagle_win = vim.api.nvim_open_win(eagle_buf, false, {
-    title = { { severity, "TitleColor" } },
+    title = { { config.options.title, "TitleColor" } },
     title_pos = config.options.title_pos,
     relative = 'editor',
     row = row_pos - config.options.window_row,
@@ -337,7 +309,7 @@ function M.is_mouse_on_code()
   -- a) Whitespace
   -- b) After the last character of the current line
   -- c) Before the first character of the current line
-  return ((mouse_pos.column ~= string.len(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index)
+  return ((mouse_pos.column ~= vim.fn.strdisplaywidth(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index)
 end
 
 function M.process_mouse_pos()
