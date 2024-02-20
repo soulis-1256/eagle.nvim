@@ -1,8 +1,10 @@
 local config = require("eagle.config")
 
 local M = {}
+
 M.setup = config.setup
 
+-- keep track of eagle window id and eagle buffer id
 local eagle_win = nil
 local eagle_buf = nil
 
@@ -14,12 +16,30 @@ local win_lock = 0
 
 --- call vim.fn.wincol() once in the beginning
 local index_lock = 0
---- store the value of the starting column of actual code (skip line number columns etc)
+
+--- store the value of the starting column of actual code (skip line number columns, icons etc)
 local code_index
 
-local error_messages = {}
+-- tables that hold the diagnostics and lsp info
+local diagnostic_messages = {}
 local lsp_info = {}
+
+-- needed to block the creation of eagle_win when the mouse moves before the render delay timer is done
 local last_mouse_pos
+
+--load and sort all the diagnostics of the current buffer
+local sorted_diagnostics
+
+-- a bool variable to detect if the mouse is moving, binded with the <MouseMove> event
+local isMouseMoving = false
+
+-- store the line of the last mouse position, needed to detect scrolling
+local last_mouse_line = -1
+
+-- a bool variable to make sure process_mouse_pos() is only called once, when the mouse goes idle
+local lock_processing = false
+
+local renderDelayTimer = vim.loop.new_timer()
 
 function M.create_eagle_win()
   -- return if the mouse has moved exactly before the eagle window was to be created
@@ -32,14 +52,14 @@ function M.create_eagle_win()
 
   local messages = {}
 
-  for i, error_message in ipairs(error_messages) do
-    if #error_messages > 1 then
-      table.insert(messages, i .. ". " .. error_message.message)
+  for i, diagnostic_message in ipairs(diagnostic_messages) do
+    if #diagnostic_messages > 1 then
+      table.insert(messages, i .. ". " .. diagnostic_message.message)
     else
-      table.insert(messages, error_message.message)
+      table.insert(messages, diagnostic_message.message)
     end
 
-    local severity = error_message.severity
+    local severity = diagnostic_message.severity
 
     if severity == 1 then
       severity = "Error"
@@ -53,17 +73,17 @@ function M.create_eagle_win()
 
     table.insert(messages, "severity: " .. severity)
 
-    table.insert(messages, "code: " .. error_message.code)
+    table.insert(messages, "code: " .. diagnostic_message.code)
 
-    table.insert(messages, "source: " .. error_message.source)
+    table.insert(messages, "source: " .. diagnostic_message.source)
 
     -- Not every diagnostic will provide a hypertext reference, unlike the code, source, severity and message fields
-    local href = error_message.user_data and
-        error_message.user_data.lsp and error_message.user_data.lsp.codeDescription and
-        error_message.user_data.lsp.codeDescription.href
+    local href = diagnostic_message.user_data and
+        diagnostic_message.user_data.lsp and diagnostic_message.user_data.lsp.codeDescription and
+        diagnostic_message.user_data.lsp.codeDescription.href
 
     if href then
-      table.insert(messages, "href: " .. error_message.user_data.lsp.codeDescription.href)
+      table.insert(messages, "href: " .. diagnostic_message.user_data.lsp.codeDescription.href)
     end
 
     -- newline
@@ -71,7 +91,7 @@ function M.create_eagle_win()
   end
 
   if config.options.show_lsp_info and #lsp_info > 0 then
-    if #error_messages > 0 then
+    if #diagnostic_messages > 0 then
       table.insert(messages, "---")
     end
     table.insert(messages, "# LSP Info")
@@ -93,12 +113,14 @@ function M.create_eagle_win()
   vim.bo[eagle_buf].modifiable = true
   vim.bo[eagle_buf].readonly = false
 
+  -- this "stylizes" the markdown messages (diagnostics + lsp info)
+  -- and attaches them to the eagle_buf
   vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
 
   vim.bo[eagle_buf].modifiable = false
   vim.bo[eagle_buf].readonly = true
 
-  -- Now calculate the number of lines in the buffer
+  -- calculate the number of lines in the buffer
   local num_lines = vim.api.nvim_buf_line_count(eagle_buf)
 
   -- Iterate over each line in the buffer to find the max width
@@ -174,25 +196,17 @@ function M.load_lsp_info()
   lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
 end
 
---load and sort all the diagnostics of the current buffer
-local buf_diagnostics
-
 function M.sort_buf_diagnostics()
-  buf_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
+  sorted_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
 
-  table.sort(buf_diagnostics, function(a, b)
+  table.sort(sorted_diagnostics, function(a, b)
     return a.lnum < b.lnum
   end)
 end
 
-vim.api.nvim_create_autocmd('DiagnosticChanged', {
-  callback = function()
-    M.sort_buf_diagnostics()
-  end,
-})
-
 function M.check_lsp_support()
   -- check if the active clients support textDocument/hover
+  -- get_active_clients() doesn't give per-buf clients, so the for loop will need extra work
   local clients = vim.lsp.buf_get_clients()
 
   for _, client in ipairs(clients) do
@@ -207,7 +221,7 @@ end
 function M.load_diagnostics()
   local mouse_pos = vim.fn.getmousepos()
   local diagnostics
-  error_messages = {}
+  diagnostic_messages = {}
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
   for _, extmark in ipairs(pos_info.extmarks) do
@@ -215,15 +229,15 @@ function M.load_diagnostics()
     if string.find(extmark_str, "Diagnostic") then
       diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
 
-      --binary search on the sorted buf_diagnostics table
+      --binary search on the sorted sorted_diagnostics table
       --needed for nested underlines (poor API)
       if #diagnostics == 0 then
         local outer_line
-        if buf_diagnostics then
-          local low, high = 1, #buf_diagnostics
+        if sorted_diagnostics then
+          local low, high = 1, #sorted_diagnostics
           while low <= high do
             local mid = math.floor((low + high) / 2)
-            local diagnostic = buf_diagnostics[mid]
+            local diagnostic = sorted_diagnostics[mid]
             if diagnostic.lnum < mouse_pos.line - 1 then
               outer_line = diagnostic.lnum
               low = mid + 1
@@ -262,15 +276,11 @@ function M.load_diagnostics()
       end
 
       if isMouseWithinVerticalBounds and isMouseWithinHorizontalBounds then
-        table.insert(error_messages, diagnostic)
+        table.insert(diagnostic_messages, diagnostic)
       end
     end
   end
 end
-
-local isMouseMoving = false
-
-local renderDelayTimer = vim.loop.new_timer()
 
 local function startRender()
   renderDelayTimer:stop()
@@ -327,7 +337,7 @@ function M.process_mouse_pos()
       M.load_lsp_info()
     end
 
-    if #error_messages == 0 and #lsp_info == 0 then
+    if #diagnostic_messages == 0 and #lsp_info == 0 then
       return
     end
 
@@ -410,18 +420,12 @@ function M.formatMessage(message, maxWidth)
   return formattedMessage
 end
 
--- store the line of the last mouse position, in the case of scrolling
-local last_line = -1
-
--- a lock variable that makes sure that process_mouse_pos() is only called once, when the mouse goes idle
-local lock_processing = false
-
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
 local function detectScroll()
   local mousePos = vim.fn.getmousepos()
 
-  if mousePos.line ~= last_line then
-    last_line = mousePos.line
+  if mousePos.line ~= last_mouse_line then
+    last_mouse_line = mousePos.line
     M.handle_eagle_focus()
   end
 end
@@ -447,10 +451,10 @@ vim.keymap.set('n', '<MouseMove>', function()
   isMouseMoving = true
 end, { silent = true })
 
---detect mode change (close the eagle window when leaving normal mode)
-vim.api.nvim_create_autocmd({ 'ModeChanged' }, {
-  group = vim.api.nvim_create_augroup('ProcessMousePosOnModeChange', {}),
-  callback = M.process_mouse_pos,
-})
+-- detect changes in Nemvim modes (close the eagle window when leaving normal mode)
+vim.api.nvim_create_autocmd("ModeChanged", { callback = M.process_mouse_pos })
+
+-- when the diagnostics of the file change, sort them
+vim.api.nvim_create_autocmd('DiagnosticChanged', { callback = M.sort_buf_diagnostics })
 
 return M
