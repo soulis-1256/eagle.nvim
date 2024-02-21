@@ -133,6 +133,8 @@ function M.create_eagle_win()
 
   -- Calculate the window height based on the number of lines in the buffer
   local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
+
+  -- need + 1 for hyperlinks (shift + click)
   local width = math.max(max_line_width + config.options.scrollbar_offset + 1,
     vim.fn.strdisplaywidth(config.options.title))
 
@@ -376,9 +378,13 @@ function M.handle_eagle_focus()
   --]]
 
   -- west side shouldn't be completely accurate, we need an extra column for better user experience
+  -- for this reason we include win_pad[2]
   local isMouseWithinWestSide = (mouse_pos.screencol >= win_pad[2])
 
-  local isMouseWithinEastSide = (mouse_pos.screencol <= (win_pad[2] + win_width + config.options.scrollbar_offset + 1))
+  -- east will always have an extra column
+  -- keep in mind that win_width already includes config.options.scrollbar_offset
+  local isMouseWithinEastSide = (mouse_pos.screencol <= (win_pad[2] + win_width + 2))
+
   local isMouseWithinNorthSide = (mouse_pos.screenrow >= win_pad[1] + 1)
   local isMouseWithinSouthSide = (mouse_pos.screenrow <= (win_pad[1] + win_height + 2))
 
