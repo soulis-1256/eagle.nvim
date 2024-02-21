@@ -461,7 +461,7 @@ vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.sched
   end
 end))
 
-append_keymap = require("eagle.keymap")
+local append_keymap = require("eagle.keymap")
 
 append_keymap("n", "<MouseMove>", function(preceding)
   preceding()
@@ -473,7 +473,7 @@ end, { silent = true })
 append_keymap({ "n", "v" }, ":", function(preceding)
   preceding()
 
-  if eagle_win and vim.api.nvim_get_current_win() == eagle_win then
+  if eagle_win and vim.api.nvim_get_current_win() == eagle_win and config.options.close_on_cmd then
     vim.api.nvim_win_close(eagle_win, false)
     win_lock = 0
   end

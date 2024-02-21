@@ -1,6 +1,11 @@
 local M = {}
 
 local defaults = {
+  -- close the eagle window when you execute a command (pressing : on normal or visual mode)
+  -- this is to avoid weird things happening when the eagle window is in focus
+  -- set it to false if you want more control over the window
+  close_on_cmd = true,
+
   --show lsp info (exact same contents as from vim.lsp.buf.hover()) in the eagle window
   show_lsp_info = true,
 
