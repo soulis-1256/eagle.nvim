@@ -80,11 +80,12 @@ function M.create_eagle_win()
 
     table.insert(messages, "source: " .. diagnostic_message.source)
 
+    -- some diagnostics may not fill the code field
     if diagnostic_message.code then
       table.insert(messages, "code: " .. diagnostic_message.code)
     end
 
-    -- Not every diagnostic will provide a hypertext reference, unlike the source, severity and message fields
+    -- some diagnostics may not fill the hypertext reference field
     local href = diagnostic_message.user_data and
         diagnostic_message.user_data.lsp and diagnostic_message.user_data.lsp.codeDescription and
         diagnostic_message.user_data.lsp.codeDescription.href
@@ -460,14 +461,25 @@ vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.sched
   end
 end))
 
-vim.keymap.set("n", "<MouseMove>", function()
-  -- Call the existing mapping for <MouseMove>
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<MouseMove>", true, false, true), "n", false)
+append_keymap = require("eagle.keymap")
+
+append_keymap("n", "<MouseMove>", function(preceding)
+  preceding()
 
   isMouseMoving = true
 end, { silent = true })
 
--- detect changes in Nemvim modes (close the eagle window when leaving normal mode)
+-- in the future, I may need to bind this to CmdlineEnter and/or CmdWinEnter, instead of setting a keymap
+append_keymap({ "n", "v" }, ":", function(preceding)
+  preceding()
+
+  if eagle_win and vim.api.nvim_get_current_win() == eagle_win then
+    vim.api.nvim_win_close(eagle_win, false)
+    win_lock = 0
+  end
+end, { silent = true })
+
+-- detect changes in Neovim modes (close the eagle window when leaving normal mode)
 vim.api.nvim_create_autocmd("ModeChanged", { callback = M.process_mouse_pos })
 
 -- when the diagnostics of the file change, sort them
