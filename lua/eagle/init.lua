@@ -52,6 +52,11 @@ function M.create_eagle_win()
 
   local messages = {}
 
+  if #diagnostic_messages > 0 then
+    table.insert(messages, "# Diagnostics")
+    table.insert(messages, "")
+  end
+
   for i, diagnostic_message in ipairs(diagnostic_messages) do
     if #diagnostic_messages > 1 then
       table.insert(messages, i .. ". " .. diagnostic_message.message)
@@ -73,11 +78,13 @@ function M.create_eagle_win()
 
     table.insert(messages, "severity: " .. severity)
 
-    table.insert(messages, "code: " .. diagnostic_message.code)
-
     table.insert(messages, "source: " .. diagnostic_message.source)
 
-    -- Not every diagnostic will provide a hypertext reference, unlike the code, source, severity and message fields
+    if diagnostic_message.code then
+      table.insert(messages, "code: " .. diagnostic_message.code)
+    end
+
+    -- Not every diagnostic will provide a hypertext reference, unlike the source, severity and message fields
     local href = diagnostic_message.user_data and
         diagnostic_message.user_data.lsp and diagnostic_message.user_data.lsp.codeDescription and
         diagnostic_message.user_data.lsp.codeDescription.href
@@ -453,7 +460,10 @@ vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.sched
   end
 end))
 
-vim.keymap.set('n', '<MouseMove>', function()
+vim.keymap.set("n", "<MouseMove>", function()
+  -- Call the existing mapping for <MouseMove>
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<MouseMove>", true, false, true), "n", false)
+
   isMouseMoving = true
 end, { silent = true })
 
@@ -461,6 +471,6 @@ end, { silent = true })
 vim.api.nvim_create_autocmd("ModeChanged", { callback = M.process_mouse_pos })
 
 -- when the diagnostics of the file change, sort them
-vim.api.nvim_create_autocmd('DiagnosticChanged', { callback = M.sort_buf_diagnostics })
+vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = M.sort_buf_diagnostics })
 
 return M
