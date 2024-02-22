@@ -36,6 +36,9 @@ local isMouseMoving = false
 -- store the line of the last mouse position, needed to detect scrolling
 local last_mouse_line = -1
 
+-- Initialize last_pos as a global variable
+local last_pos = nil
+
 -- a bool variable to make sure process_mouse_pos() is only called once, when the mouse goes idle
 local lock_processing = false
 
@@ -322,7 +325,60 @@ function M.is_mouse_on_code()
   -- a) Whitespace
   -- b) After the last character of the current line
   -- c) Before the first character of the current line
-  return ((mouse_pos.column ~= vim.fn.strdisplaywidth(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index)
+  if ((mouse_pos.column ~= vim.fn.strdisplaywidth(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index) then
+    last_pos = vim.fn.getmousepos()
+    return true
+  end
+  return false
+end
+
+local function isSpecialCharacter(pos)
+  local specialCharacters = ":<>{}%[%]()|+-%=`~?.,"
+
+  -- Get the content of the current line using Vim's getline function
+  local line_content = vim.fn.getline(pos.line)
+
+  -- Check if the column is within the bounds of the line
+  if pos.column <= #line_content then
+    local char = line_content:sub(pos.column, pos.column)
+
+    -- Check if the character is a special character or whitespace
+    if string.find(specialCharacters, char, 1, true) or char:match("%s") then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function checkCharacter(mouse_pos)
+  if last_pos and last_pos.line ~= mouse_pos.line then
+    last_pos = mouse_pos
+    return true
+  end
+  -- Get the content of the current line using Vim's getline function
+  local mouse_line_content = vim.fn.getline(mouse_pos.line)
+  local last_line_content = last_pos and vim.fn.getline(last_pos.line)
+
+  -- Extract the characters under last_pos and mouse_pos
+  local mouse_char = mouse_line_content:sub(mouse_pos.column, mouse_pos.column)
+  local last_char = last_pos and last_line_content and last_line_content:sub(last_pos.column, last_pos.column)
+
+  -- If the characters are the same, return false
+  if mouse_char == last_char then
+    last_pos = mouse_pos
+    return false
+  end
+
+  -- Check if the current or last position was a special character
+  local isCurrentSpecial = isSpecialCharacter(mouse_pos)
+  local isLastSpecial = last_pos and isSpecialCharacter(last_pos)
+
+  -- Always update last_pos
+  last_pos = mouse_pos
+
+  -- Return true if either the current or last position was a special character
+  return isCurrentSpecial or isLastSpecial
 end
 
 function M.process_mouse_pos()
@@ -403,39 +459,19 @@ function M.handle_eagle_focus()
       vim.api.nvim_win_set_cursor(eagle_win, { 1, 0 })
     end
   else
-    -- close the window only if the mouse is not moving, or when the mouse is not over actual code
-    if not isMouseMoving or not M.is_mouse_on_code() then
-      vim.api.nvim_win_close(eagle_win, false)
-      win_lock = 0
+    if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.fn.mode() == "n" then
+      -- close the window if the mouse is over or comes from a special character
+      if not checkCharacter(mouse_pos) and vim.api.nvim_get_current_win() ~= eagle_win then -- and (last_mouse_line ~= mouse_pos.line) then
+        return
+      end
     end
+    vim.api.nvim_win_close(eagle_win, false)
+    win_lock = 0
   end
-end
-
-function M.formatMessage(message, maxWidth)
-  local words = {}
-  local currentWidth = 0
-  local formattedMessage = ""
-
-  for word in message:gmatch("%S+") do
-    local wordWidth = vim.fn.strdisplaywidth(word)
-
-    if currentWidth + wordWidth <= maxWidth then
-      words[#words + 1] = word
-      currentWidth = currentWidth + wordWidth + 1 --add 1 for the space between words
-    else
-      formattedMessage = formattedMessage .. table.concat(words, " ") .. "\n"
-      words = { word }
-      currentWidth = wordWidth + 1
-    end
-  end
-
-  formattedMessage = formattedMessage .. table.concat(words, " ")
-
-  return formattedMessage
 end
 
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
-local function detectScroll()
+local function handle_scroll()
   local mousePos = vim.fn.getmousepos()
 
   if mousePos.line ~= last_mouse_line then
@@ -448,16 +484,17 @@ end
 vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.schedule_wrap(function()
   -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
   if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
-    detectScroll()
+    handle_scroll()
   end
 
   if isMouseMoving then
-    M.handle_eagle_focus()
     isMouseMoving = false
     lock_processing = false
-  elseif not lock_processing then
-    M.process_mouse_pos()
-    lock_processing = true
+  else
+    if not lock_processing then
+      M.process_mouse_pos()
+      lock_processing = true
+    end
   end
 end))
 
@@ -466,6 +503,7 @@ local append_keymap = require("eagle.keymap")
 append_keymap("n", "<MouseMove>", function(preceding)
   preceding()
 
+  M.handle_eagle_focus()
   isMouseMoving = true
 end, { silent = true })
 
