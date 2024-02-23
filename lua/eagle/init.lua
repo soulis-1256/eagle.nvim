@@ -61,10 +61,13 @@ function M.create_eagle_win()
   end
 
   for i, diagnostic_message in ipairs(diagnostic_messages) do
-    if #diagnostic_messages > 1 then
-      table.insert(messages, i .. ". " .. diagnostic_message.message)
-    else
-      table.insert(messages, diagnostic_message.message)
+    local message_parts = vim.split(diagnostic_message.message, "\n", { trimempty = false })
+    for _, part in ipairs(message_parts) do
+      if #diagnostic_messages > 1 then
+        table.insert(messages, i .. ". " .. part)
+      else
+        table.insert(messages, part)
+      end
     end
 
     local severity = diagnostic_message.severity
@@ -80,7 +83,6 @@ function M.create_eagle_win()
     end
 
     table.insert(messages, "severity: " .. severity)
-
     table.insert(messages, "source: " .. diagnostic_message.source)
 
     -- some diagnostics may not fill the code field
@@ -98,7 +100,9 @@ function M.create_eagle_win()
     end
 
     -- newline
-    table.insert(messages, "")
+    if i < #diagnostic_messages then
+      table.insert(messages, "")
+    end
   end
 
   if config.options.show_lsp_info and #lsp_info > 0 then
@@ -117,9 +121,10 @@ function M.create_eagle_win()
   end
 
   -- create a buffer with buflisted = false and scratch = true
-  if not eagle_buf then
-    eagle_buf = vim.api.nvim_create_buf(false, true)
+  if eagle_buf then
+    vim.api.nvim_buf_delete(eagle_buf, {})
   end
+  eagle_buf = vim.api.nvim_create_buf(false, true)
 
   vim.bo[eagle_buf].modifiable = true
   vim.bo[eagle_buf].readonly = false
@@ -173,7 +178,32 @@ function M.create_eagle_win()
   })
 end
 
-function M.load_lsp_info()
+function M.check_lsp_support()
+  -- get the filetype of the current buffer
+  local filetype = vim.bo.filetype
+
+  -- get all active clients
+  local clients = vim.lsp.get_active_clients()
+
+  -- filter the clients based on the filetype of the current buffer
+  local relevant_clients = {}
+  for _, client in ipairs(clients) do
+    if client.config.filetypes and vim.tbl_contains(client.config.filetypes, filetype) then
+      table.insert(relevant_clients, client)
+    end
+  end
+
+  -- check if any of the relevant clients support textDocument/hover
+  for _, client in ipairs(relevant_clients) do
+    if client.supports_method("textDocument/hover") then
+      return true
+    end
+  end
+
+  return false
+end
+
+function M.load_lsp_info(callback)
   --Ideally we need this binded with Event(s)
   --As of right now, WinEnter is a partial solution,
   --but it's not enough (for buffers etc).
@@ -181,6 +211,8 @@ function M.load_lsp_info()
   if not M.check_lsp_support() then
     return
   end
+
+  lsp_info = {}
 
   local mouse_pos = vim.fn.getmousepos()
   local line = mouse_pos.line - 1
@@ -191,22 +223,21 @@ function M.load_lsp_info()
   position_params.position.line = line
   position_params.position.character = col
 
-  local result
   local bufnr = vim.api.nvim_get_current_buf()
 
-  result = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", position_params)
+  -- asynchronous, so we need to use a callback function
+  -- buf_request_sync contains vim.wait which is unwanted
+  vim.lsp.buf_request_all(bufnr, "textDocument/hover", position_params, function(results)
+    for _, result in pairs(results) do
+      if result.result and result.result.contents then
+        lsp_info = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
+        lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
+      end
+    end
 
-  if not result or vim.tbl_isempty(result) then
-    return
-  end
-
-  local response = result[1]
-  if not (response and response.result and response.result.contents) then
-    return
-  end
-
-  lsp_info = vim.lsp.util.convert_input_to_markdown_lines(response.result.contents)
-  lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
+    -- Call the callback function after lsp_info has been populated
+    callback()
+  end)
 end
 
 function M.sort_buf_diagnostics()
@@ -215,20 +246,6 @@ function M.sort_buf_diagnostics()
   table.sort(sorted_diagnostics, function(a, b)
     return a.lnum < b.lnum
   end)
-end
-
-function M.check_lsp_support()
-  -- check if the active clients support textDocument/hover
-  -- get_active_clients() doesn't give per-buf clients, so the for loop will need extra work
-  local clients = vim.lsp.buf_get_clients()
-
-  for _, client in ipairs(clients) do
-    if client.supports_method("textDocument/hover") then
-      return true
-    end
-  end
-
-  return false
 end
 
 function M.load_diagnostics()
@@ -305,7 +322,24 @@ local function startRender()
     else
       return
     end
-    M.create_eagle_win()
+
+    M.load_diagnostics()
+
+    if config.options.show_lsp_info then
+      -- Pass a function to M.load_lsp_info() that calls M.create_eagle_win()
+      M.load_lsp_info(function()
+        if #diagnostic_messages == 0 and #lsp_info == 0 then
+          return
+        end
+        M.create_eagle_win()
+      end)
+    else
+      -- If show_lsp_info is false, call M.create_eagle_win() directly
+      if #diagnostic_messages == 0 then
+        return
+      end
+      M.create_eagle_win()
+    end
   end))
 end
 
@@ -332,55 +366,6 @@ function M.is_mouse_on_code()
   return false
 end
 
-local function isSpecialCharacter(pos)
-  local specialCharacters = ":<>{}%[%]()|+-%=`~?.,"
-
-  -- Get the content of the current line using Vim's getline function
-  local line_content = vim.fn.getline(pos.line)
-
-  -- Check if the column is within the bounds of the line
-  if pos.column <= #line_content then
-    local char = line_content:sub(pos.column, pos.column)
-
-    -- Check if the character is a special character or whitespace
-    if string.find(specialCharacters, char, 1, true) or char:match("%s") then
-      return true
-    end
-  end
-
-  return false
-end
-
-local function checkCharacter(mouse_pos)
-  if last_pos and last_pos.line ~= mouse_pos.line then
-    last_pos = mouse_pos
-    return true
-  end
-  -- Get the content of the current line using Vim's getline function
-  local mouse_line_content = vim.fn.getline(mouse_pos.line)
-  local last_line_content = last_pos and vim.fn.getline(last_pos.line)
-
-  -- Extract the characters under last_pos and mouse_pos
-  local mouse_char = mouse_line_content:sub(mouse_pos.column, mouse_pos.column)
-  local last_char = last_pos and last_line_content and last_line_content:sub(last_pos.column, last_pos.column)
-
-  -- If the characters are the same, return false
-  if mouse_char == last_char then
-    last_pos = mouse_pos
-    return false
-  end
-
-  -- Check if the current or last position was a special character
-  local isCurrentSpecial = isSpecialCharacter(mouse_pos)
-  local isLastSpecial = last_pos and isSpecialCharacter(last_pos)
-
-  -- Always update last_pos
-  last_pos = mouse_pos
-
-  -- Return true if either the current or last position was a special character
-  return isCurrentSpecial or isLastSpecial
-end
-
 function M.process_mouse_pos()
   -- return if not in normal mode or if the mouse is not hovering over actual code
   if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
@@ -396,17 +381,6 @@ function M.process_mouse_pos()
   end
 
   if vim.api.nvim_get_current_win() ~= eagle_win then
-    M.load_diagnostics()
-
-    lsp_info = {}
-    if config.options.show_lsp_info and M.check_lsp_support() then
-      M.load_lsp_info()
-    end
-
-    if #diagnostic_messages == 0 and #lsp_info == 0 then
-      return
-    end
-
     startRender()
   end
 end
@@ -461,13 +435,62 @@ function M.handle_eagle_focus()
   else
     if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.fn.mode() == "n" then
       -- close the window if the mouse is over or comes from a special character
-      if not checkCharacter(mouse_pos) and vim.api.nvim_get_current_win() ~= eagle_win then -- and (last_mouse_line ~= mouse_pos.line) then
+      if not M.check_char(mouse_pos) and vim.api.nvim_get_current_win() ~= eagle_win then -- and (last_mouse_line ~= mouse_pos.line) then
         return
       end
     end
     vim.api.nvim_win_close(eagle_win, false)
     win_lock = 0
   end
+end
+
+function M.check_char(mouse_pos)
+  if last_pos and last_pos.line ~= mouse_pos.line then
+    last_pos = mouse_pos
+    return true
+  end
+  -- Get the content of the current line using Vim's getline function
+  local mouse_line_content = vim.fn.getline(mouse_pos.line)
+  local last_line_content = last_pos and vim.fn.getline(last_pos.line)
+
+  -- Extract the characters under last_pos and mouse_pos
+  local mouse_char = mouse_line_content:sub(mouse_pos.column, mouse_pos.column)
+  local last_char = last_pos and last_line_content and last_line_content:sub(last_pos.column, last_pos.column)
+
+  -- If the characters are the same, return false
+  if mouse_char == last_char then
+    last_pos = mouse_pos
+    return false
+  end
+
+  local function is_special_char(pos)
+    local specialCharacters = ":<>{}%[%]()|+-%=`~?.,"
+
+    -- Get the content of the current line using Vim's getline function
+    local line_content = vim.fn.getline(pos.line)
+
+    -- Check if the column is within the bounds of the line
+    if pos.column <= #line_content then
+      local char = line_content:sub(pos.column, pos.column)
+
+      -- Check if the character is a special character or whitespace
+      if string.find(specialCharacters, char, 1, true) or char:match("%s") then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  -- Check if the current or last position was a special character
+  local isCurrentSpecial = is_special_char(mouse_pos)
+  local isLastSpecial = last_pos and is_special_char(last_pos)
+
+  -- Always update last_pos
+  last_pos = mouse_pos
+
+  -- Return true if either the current or last position was a special character
+  return isCurrentSpecial or isLastSpecial
 end
 
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
