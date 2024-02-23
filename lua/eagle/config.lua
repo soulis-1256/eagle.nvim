@@ -1,17 +1,24 @@
 local M = {}
 
 local defaults = {
+  -- close the eagle window when you execute a command (pressing : on normal or visual mode)
+  -- this is to avoid weird things happening when the eagle window is in focus
+  -- set it to false if you want more control over the window
+  close_on_cmd = true,
+
+  --show lsp info (exact same contents as from vim.lsp.buf.hover()) in the eagle window
+  show_lsp_info = true,
+
   --Offset that handles possible scrollbar plugins
   --by adding an offset column in the right side of the window.
   --If you don't know what I'm talking about, then
   --you don't need this option.
   scrollbar_offset = 0,
 
-  --how much of the total editor width the
-  --floating window can take
-  --the plugin will use this value to calculate
-  --when to wrap words to a new line
-  max_width_factor = 0.3,
+  --limit the height of the eagle window to vim.o.lines / max_height_factor
+  --it should be any float number in the range [2.5, 5.0]
+  --it doesnt take effect if you set it to anything outside that range
+  max_height_factor = 2.5,
 
   --the delay between the mouse position arriving at a diagnostic
   --and the floating window opening
@@ -33,19 +40,20 @@ local defaults = {
   --"rounded": Like "single", but with rounded corners ("╭" etc.).
   --"solid": Adds padding by a single whitespace cell.
   --"shadow": A drop shadow effect by blending with the background.
-  border = "rounded",
+  border = "single",
 
-  --the position of the title in the window
+  -- the title of the window
+  title = "",
+
+  --the position of the title
   --can be "left", "center" or "right"
-  title_pos = "left",
+  title_pos = "center",
 
-  --customize window colors
-  --the defaults are inspired by folke/tokyonight.nvim
-  error_color = "#db4b4b",
-  warning_color = "#e0af68",
-  info_color = "#0db9d7",
-  hint_color = "#1abc9c",
-  generic_color = "#808080",
+  -- window title color
+  title_color = "#8AAAE5",
+
+  -- window border color
+  border_color = "#8AAAE5",
 }
 
 M.options = {}
