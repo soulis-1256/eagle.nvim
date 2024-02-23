@@ -8,7 +8,7 @@
 - [x] Display the exact contents of vim.lsp.buf.hover()
 - [x] Fix vim.lsp.util.stylize_markdown needing non-readonly and modifiable buffer
 - [x] Display "LSP Info" in the whole window (replaced with "# LSP Info" and "---", handled as markdown)
-- [ ] Fix config.options.detect_mouse_timer being nil initially
+- [x] Fix setup function
 - [ ] Keyboard workflow?
 ### Support
 You can support me by donating through [PayPal](https://www.paypal.com/paypalme/soulis1256) and by providing your feedback. You can find me on [Discord](https://discord.com/users/319490489411829761).

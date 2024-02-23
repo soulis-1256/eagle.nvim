@@ -2,8 +2,6 @@ local config = require("eagle.config")
 
 local M = {}
 
-M.setup = config.setup
-
 -- keep track of eagle window id and eagle buffer id
 local eagle_win = nil
 local eagle_buf = nil
@@ -494,7 +492,7 @@ function M.check_char(mouse_pos)
 end
 
 -- Function that detects if the user scrolled with the mouse wheel, based on vim.fn.getmousepos().line
-local function handle_scroll()
+function M.handle_scroll()
   local mousePos = vim.fn.getmousepos()
 
   if mousePos.line ~= last_mouse_line then
@@ -502,24 +500,6 @@ local function handle_scroll()
     M.manage_windows()
   end
 end
-
--- detect if the mouse goes idle
-vim.loop.new_timer():start(0, config.options.detect_mouse_timer or 50, vim.schedule_wrap(function()
-  -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
-  if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
-    handle_scroll()
-  end
-
-  if isMouseMoving then
-    isMouseMoving = false
-    lock_processing = false
-  else
-    if not lock_processing then
-      M.process_mouse_pos()
-      lock_processing = true
-    end
-  end
-end))
 
 local append_keymap = require("eagle.keymap")
 
@@ -553,5 +533,33 @@ end})
 
 -- when the diagnostics of the file change, sort them
 vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = M.sort_buf_diagnostics })
+
+function M.setup(opts)
+  -- Call the config setup functon to initialize the options
+  config.setup(opts)
+
+  -- handle user giving invalid values
+  if config.options.detect_mouse_timer < 0 then
+    config.options.detect_mouse_timer = 50
+  end
+
+  -- start the timer that handles the whole plugin
+  vim.loop.new_timer():start(0, config.options.detect_mouse_timer, vim.schedule_wrap(function()
+    -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
+    if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
+      M.handle_scroll()
+    end
+
+    if isMouseMoving then
+      isMouseMoving = false
+      lock_processing = false
+    else
+      if not lock_processing then
+        M.process_mouse_pos()
+        lock_processing = true
+      end
+    end
+  end))
+end
 
 return M
