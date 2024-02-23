@@ -371,13 +371,13 @@ function M.process_mouse_pos()
   if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
     renderDelayTimer:stop()
     if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
-      M.handle_eagle_focus()
+      M.manage_windows()
     end
     return
   end
 
   if eagle_win and vim.api.nvim_win_is_valid(eagle_win) then
-    M.handle_eagle_focus()
+    M.manage_windows()
   end
 
   if vim.api.nvim_get_current_win() ~= eagle_win then
@@ -385,7 +385,7 @@ function M.process_mouse_pos()
   end
 end
 
-function M.handle_eagle_focus()
+function M.manage_windows()
   -- if the eagle window is not open, return and make sure it can be re-rendered
   -- this is done with win_lock, to prevent the case where the user presses :q for the eagle window
   if not eagle_win or not vim.api.nvim_win_is_valid(eagle_win) then
@@ -499,7 +499,7 @@ local function handle_scroll()
 
   if mousePos.line ~= last_mouse_line then
     last_mouse_line = mousePos.line
-    M.handle_eagle_focus()
+    M.manage_windows()
   end
 end
 
@@ -526,7 +526,7 @@ local append_keymap = require("eagle.keymap")
 append_keymap("n", "<MouseMove>", function(preceding)
   preceding()
 
-  M.handle_eagle_focus()
+  M.manage_windows()
   isMouseMoving = true
 end, { silent = true })
 
@@ -541,7 +541,15 @@ append_keymap({ "n", "v" }, ":", function(preceding)
 end, { silent = true })
 
 -- detect changes in Neovim modes (close the eagle window when leaving normal mode)
-vim.api.nvim_create_autocmd("ModeChanged", { callback = M.process_mouse_pos })
+vim.api.nvim_create_autocmd("ModeChanged", { callback = function()
+  -- when entering normal mode, dont call process_mouse_pos(),
+  -- because we should let the user move the mouse again to "unlock" the plugin.
+  -- If we do otherwise, then when the user is focusing on typing something, the eagle window will keep popping up
+  -- whenever he enters normal mode (assuming the mouse is on code with diagnostics and/or lsp info).
+  if vim.fn.mode() ~= "n" then
+    M.process_mouse_pos()
+  end
+end})
 
 -- when the diagnostics of the file change, sort them
 vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = M.sort_buf_diagnostics })
