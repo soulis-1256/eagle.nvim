@@ -194,6 +194,9 @@ function M.check_lsp_support()
   -- check if any of the relevant clients support textDocument/hover
   for _, client in ipairs(relevant_clients) do
     if client.supports_method("textDocument/hover") then
+      if config.options.debug_mode then
+        print("Found LSP client supporting textDocument/hover: " .. client.name)
+      end
       return true
     end
   end
@@ -521,15 +524,17 @@ append_keymap({ "n", "v" }, ":", function(preceding)
 end, { silent = true })
 
 -- detect changes in Neovim modes (close the eagle window when leaving normal mode)
-vim.api.nvim_create_autocmd("ModeChanged", { callback = function()
-  -- when entering normal mode, dont call process_mouse_pos(),
-  -- because we should let the user move the mouse again to "unlock" the plugin.
-  -- If we do otherwise, then when the user is focusing on typing something, the eagle window will keep popping up
-  -- whenever he enters normal mode (assuming the mouse is on code with diagnostics and/or lsp info).
-  if vim.fn.mode() ~= "n" then
-    M.process_mouse_pos()
+vim.api.nvim_create_autocmd("ModeChanged", {
+  callback = function()
+    -- when entering normal mode, dont call process_mouse_pos(),
+    -- because we should let the user move the mouse again to "unlock" the plugin.
+    -- If we do otherwise, then when the user is focusing on typing something, the eagle window will keep popping up
+    -- whenever he enters normal mode (assuming the mouse is on code with diagnostics and/or lsp info).
+    if vim.fn.mode() ~= "n" then
+      M.process_mouse_pos()
+    end
   end
-end})
+})
 
 -- when the diagnostics of the file change, sort them
 vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = M.sort_buf_diagnostics })
@@ -537,6 +542,10 @@ vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = M.sort_buf_diagnos
 function M.setup(opts)
   -- Call the config setup functon to initialize the options
   config.setup(opts)
+
+  if config.options.debug_mode then
+    print("eagle.nvim is running")
+  end
 
   -- handle user giving invalid values
   if config.options.detect_mouse_timer < 0 then

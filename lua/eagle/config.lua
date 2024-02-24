@@ -1,6 +1,10 @@
 local M = {}
 
 local defaults = {
+  --debug mode, runtime info
+  --enable if neccessary
+  debug_mode = false,
+
   -- close the eagle window when you execute a command (pressing : on normal or visual mode)
   -- this is to avoid weird things happening when the eagle window is in focus
   -- set it to false if you want more control over the window
