@@ -509,6 +509,10 @@ local append_keymap = require("eagle.keymap")
 append_keymap("n", "<MouseMove>", function(preceding)
   preceding()
 
+  if config.options.debug_mode then
+    print("eagle.nvim: MouseMove detected at " .. os.clock())
+  end
+
   M.manage_windows()
   isMouseMoving = true
 end, { silent = true })
@@ -554,6 +558,9 @@ function M.setup(opts)
 
   -- start the timer that handles the whole plugin
   vim.loop.new_timer():start(0, config.options.detect_mouse_timer, vim.schedule_wrap(function()
+    if config.options.debug_mode then
+      print("eagle.nvim: Timer restarted at " .. os.clock())
+    end
     -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
     if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
       M.handle_scroll()
