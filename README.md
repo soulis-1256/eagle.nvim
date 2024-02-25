@@ -23,7 +23,6 @@ Using [Lazy](https://github.com/folke/lazy.nvim):
 > Until I test it and add it here, don't try setting additional Lazy properties (like main, config, opts) as an alternative way to setup the plugin.
 
 ### Setup
-All the configurable options are in the "defaults" table of [config.lua](./lua/eagle/config.lua).
 ```lua
 require("eagle").setup({
 -- override the default values found in config.lua
@@ -32,10 +31,12 @@ require("eagle").setup({
 -- make sure mousemoveevent is enabled
 vim.o.mousemoveevent = true
 ```
+You can find the description of all the options in [config.lua](./lua/eagle/config.lua).
+
+![image](https://github.com/soulis-1256/eagle.nvim/assets/118274635/9e41fac5-7d16-4dbe-9093-0059160cf14c)
 
 > [!NOTE]\
 > The plugin has been tested on Neovim versions 0.9.4 and 0.9.5.
 
----
 ### Support
 You can support me by donating through [PayPal](https://www.paypal.com/paypalme/soulis1256) and by providing your feedback. You can message me on [Discord](https://discord.com/users/319490489411829761).
