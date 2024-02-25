@@ -521,7 +521,7 @@ end, { silent = true })
 append_keymap({ "n", "v" }, ":", function(preceding)
   preceding()
 
-  if eagle_win and vim.api.nvim_get_current_win() == eagle_win and config.options.close_on_cmd then
+  if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() == eagle_win and config.options.close_on_cmd then
     vim.api.nvim_win_close(eagle_win, false)
     win_lock = 0
   end
@@ -536,6 +536,15 @@ vim.api.nvim_create_autocmd("ModeChanged", {
     -- whenever he enters normal mode (assuming the mouse is on code with diagnostics and/or lsp info).
     if vim.fn.mode() ~= "n" then
       M.process_mouse_pos()
+    end
+  end
+})
+
+vim.api.nvim_create_autocmd("CursorMoved", {
+  callback = function()
+    if eagle_win and vim.api.nvim_win_is_valid(eagle_win) and vim.api.nvim_get_current_win() ~= eagle_win then
+      vim.api.nvim_win_close(eagle_win, false)
+      win_lock = 0
     end
   end
 })
