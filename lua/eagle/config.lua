@@ -19,23 +19,29 @@ local defaults = {
   --you don't need this option.
   scrollbar_offset = 0,
 
-  --limit the height of the eagle window to vim.o.lines / max_height_factor
+  --limit the width of the eagle window to the floor of vim.o.columns / max_width_factor
+  --it should be any float number in the range [1.2, 5.0]
+  --it falls back to 2.5 if you override outside the valid range
+  max_width_factor = 2,
+
+  --limit the height of the eagle window to the floor of vim.o.lines / max_height_factor
   --it should be any float number in the range [2.5, 5.0]
-  --it doesnt take effect if you set it to anything outside that range
+  --it falls back to 2.5 if you override outside the valid range
   max_height_factor = 2.5,
 
   --the delay between the mouse position arriving at a diagnostic
-  --and the floating window opening
+  --and the floating window opening (in milliseconds)
+  --falls back to 500 if you override to something below 0
   render_delay = 500,
 
-  --the timer before the mouse is considered idle
-  --this is for detecting mouse wheel scroll
+  --the timer before the mouse is considered idle (in milliseconds)
+  --it falls back to 50 if you override to something below 0
   detect_mouse_timer = 50,
 
   --offsets that can move the window in any direction
   --you can experiment with values and see what you like
   window_row = 0,
-  window_col = 1,
+  window_col = 5,
 
   --window border options, from the api docs
   --"none": No border (default).

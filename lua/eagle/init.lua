@@ -44,7 +44,7 @@ local renderDelayTimer = vim.loop.new_timer()
 
 function M.create_eagle_win()
   -- return if the mouse has moved exactly before the eagle window was to be created
-  -- this can happen because of the render_delay
+  -- this can happen when the value of config.options.render_delay is very low
   local mouse_pos = vim.fn.getmousepos()
   if not vim.deep_equal(mouse_pos, last_mouse_pos) then
     win_lock = 0
@@ -114,28 +114,24 @@ function M.create_eagle_win()
     end
   end
 
-  if config.options.max_height_factor < 2.5 or config.options.max_height_factor > 5.0 then
-    config.options.max_height_factor = 2.5
-  end
-
   -- create a buffer with buflisted = false and scratch = true
   if eagle_buf then
     vim.api.nvim_buf_delete(eagle_buf, {})
   end
   eagle_buf = vim.api.nvim_create_buf(false, true)
 
-  vim.bo[eagle_buf].modifiable = true
-  vim.bo[eagle_buf].readonly = false
+  vim.api.nvim_buf_set_option(eagle_buf, "modifiable", true)
+  vim.api.nvim_buf_set_option(eagle_buf, "readonly", false)
 
   -- this "stylizes" the markdown messages (diagnostics + lsp info)
   -- and attaches them to the eagle_buf
   vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
 
-  vim.bo[eagle_buf].modifiable = false
-  vim.bo[eagle_buf].readonly = true
+  -- format long lines of the buffer
+  M.format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
 
-  -- calculate the number of lines in the buffer
-  local num_lines = vim.api.nvim_buf_line_count(eagle_buf)
+  vim.api.nvim_buf_set_option(eagle_buf, "modifiable", false)
+  vim.api.nvim_buf_set_option(eagle_buf, "readonly", true)
 
   -- Iterate over each line in the buffer to find the max width
   local lines = vim.api.nvim_buf_get_lines(eagle_buf, 0, -1, false)
@@ -146,7 +142,8 @@ function M.create_eagle_win()
   end
 
   -- Calculate the window height based on the number of lines in the buffer
-  local height = math.min(num_lines, math.floor(vim.o.lines / config.options.max_height_factor))
+  local height = math.min(vim.api.nvim_buf_line_count(eagle_buf),
+    math.floor(vim.o.lines / config.options.max_height_factor))
 
   -- need + 1 for hyperlinks (shift + click)
   local width = math.max(max_line_width + config.options.scrollbar_offset + 1,
@@ -174,6 +171,44 @@ function M.create_eagle_win()
     border = config.options.border,
     focusable = true,
   })
+end
+
+-- format the lines of eagle_buf, in order to fit vim.o.columns / config.options.max_width_factor
+-- for the case where an href link is splitted, I'm open to discussions on how to handle it
+function M.format_lines(max_width)
+  -- Iterate over the lines in the buffer
+  local i = 0
+  while i < vim.api.nvim_buf_line_count(eagle_buf) do
+    -- Get the current line
+    local line = vim.api.nvim_buf_get_lines(eagle_buf, i, i + 1, false)[1]
+
+    -- If the line is too long
+    if vim.fn.strdisplaywidth(line) > max_width then
+      -- Find the last space character within the maximum line width
+      local space_index = max_width
+      while space_index > 0 and string.sub(line, space_index, space_index) ~= " " do
+        space_index = space_index - 1
+      end
+
+      -- If no space character was found within max_width, just split at max_width
+      if space_index == 0 then
+        space_index = max_width
+      end
+
+      -- Split the line into two parts: the part that fits, and the remainder
+      local part1 = string.sub(line, 1, space_index)
+      local part2 = string.sub(line, space_index + 1)
+
+      -- Replace the current line with the part that fits
+      vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { part1 })
+
+      -- Insert the remainder as a new line after the current line
+      vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
+    else
+      -- If the current line already fits, move to the next line
+      i = i + 1
+    end
+  end
 end
 
 function M.check_lsp_support()
@@ -560,9 +595,22 @@ function M.setup(opts)
     print("eagle.nvim is running")
   end
 
-  -- handle user giving invalid values
+  -- handle the cases where the user overrides the defaults options to unreasonable values
+
+  if config.options.render_delay < 0 then
+    config.options.render_delay = 500
+  end
+
   if config.options.detect_mouse_timer < 0 then
     config.options.detect_mouse_timer = 50
+  end
+
+  if config.options.max_width_factor < 1.2 or config.options.max_width_factor > 5.0 then
+    config.options.max_width_factor = 2
+  end
+
+  if config.options.max_height_factor < 2.5 or config.options.max_height_factor > 5.0 then
+    config.options.max_height_factor = 2.5
   end
 
   -- start the timer that handles the whole plugin
