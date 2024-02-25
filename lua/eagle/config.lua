@@ -20,7 +20,7 @@ local defaults = {
   scrollbar_offset = 0,
 
   --limit the width of the eagle window to the floor of vim.o.columns / max_width_factor
-  --it should be any float number in the range [1.2, 5.0]
+  --it should be any float number in the range [1.1, 5.0]
   --it falls back to 2.5 if you override outside the valid range
   max_width_factor = 2,
 
@@ -36,7 +36,7 @@ local defaults = {
 
   --the timer before the mouse is considered idle (in milliseconds)
   --it falls back to 50 if you override to something below 0
-  detect_mouse_timer = 50,
+  detect_idle_timer = 50,
 
   --offsets that can move the window in any direction
   --you can experiment with values and see what you like

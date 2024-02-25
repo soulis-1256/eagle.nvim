@@ -176,6 +176,10 @@ end
 -- format the lines of eagle_buf, in order to fit vim.o.columns / config.options.max_width_factor
 -- for the case where an href link is splitted, I'm open to discussions on how to handle it
 function M.format_lines(max_width)
+  if not eagle_buf then
+    -- don't call format_lines if eagle_buf has not been created and filled with contents
+    return
+  end
   -- Iterate over the lines in the buffer
   local i = 0
   while i < vim.api.nvim_buf_line_count(eagle_buf) do
@@ -287,6 +291,7 @@ end
 function M.load_diagnostics()
   local mouse_pos = vim.fn.getmousepos()
   local diagnostics
+  local prev_diagnostics = diagnostic_messages
   diagnostic_messages = {}
 
   local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
@@ -346,20 +351,39 @@ function M.load_diagnostics()
       end
     end
   end
+
+  if not vim.deep_equal(diagnostic_messages, prev_diagnostics) then
+    return false
+  end
+
+  return true
 end
 
-local function startRender()
+local function render()
   renderDelayTimer:stop()
 
   last_mouse_pos = vim.fn.getmousepos()
   renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
-    if win_lock == 0 then
-      win_lock = 1
+    -- if the window is open, we need to check if there are new diagnostics on the same line
+    -- this is done with the highest priority, once the mouse goes idle
+    if M.load_diagnostics() then
+      if win_lock == 0 then
+        win_lock = 1
+      else
+        return
+      end
     else
-      return
-    end
+      if eagle_win and vim.api.nvim_win_is_valid(eagle_win) then
+        vim.api.nvim_win_close(eagle_win, false)
+        win_lock = 0
 
-    M.load_diagnostics()
+        -- restart the timer with half of config.options.render_delay,
+        -- invoking M.create_eagle_win() and returning immediately
+        renderDelayTimer:stop()
+        renderDelayTimer:start(math.floor(config.options.render_delay / 2), 0, vim.schedule_wrap(M.create_eagle_win))
+        return
+      end
+    end
 
     if config.options.show_lsp_info then
       -- Pass a function to M.load_lsp_info() that calls M.create_eagle_win()
@@ -417,7 +441,7 @@ function M.process_mouse_pos()
   end
 
   if vim.api.nvim_get_current_win() ~= eagle_win then
-    startRender()
+    render()
   end
 end
 
@@ -595,17 +619,17 @@ function M.setup(opts)
     print("eagle.nvim is running")
   end
 
-  -- handle the cases where the user overrides the defaults options to unreasonable values
+  -- handle the cases where the user overrides the default values to something unreasonable
 
   if config.options.render_delay < 0 then
     config.options.render_delay = 500
   end
 
-  if config.options.detect_mouse_timer < 0 then
-    config.options.detect_mouse_timer = 50
+  if config.options.detect_idle_timer < 0 then
+    config.options.detect_idle_timer = 50
   end
 
-  if config.options.max_width_factor < 1.2 or config.options.max_width_factor > 5.0 then
+  if config.options.max_width_factor < 1.1 or config.options.max_width_factor > 5.0 then
     config.options.max_width_factor = 2
   end
 
@@ -614,10 +638,11 @@ function M.setup(opts)
   end
 
   -- start the timer that handles the whole plugin
-  vim.loop.new_timer():start(0, config.options.detect_mouse_timer, vim.schedule_wrap(function()
+  vim.loop.new_timer():start(0, config.options.detect_idle_timer, vim.schedule_wrap(function()
     if config.options.debug_mode then
       print("eagle.nvim: Timer restarted at " .. os.clock())
     end
+
     -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
     if not isMouseMoving and vim.api.nvim_get_current_win() ~= eagle_win then
       M.handle_scroll()
