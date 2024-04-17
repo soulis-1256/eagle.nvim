@@ -177,9 +177,10 @@ end
 -- for the case where an href link is splitted, I'm open to discussions on how to handle it
 function M.format_lines(max_width)
   if not eagle_buf then
-    -- don't call format_lines if eagle_buf has not been created and filled with contents
+    -- Don't call format_lines if eagle_buf has not been created and filled with contents
     return
   end
+
   -- Iterate over the lines in the buffer
   local i = 0
   while i < vim.api.nvim_buf_line_count(eagle_buf) do
@@ -188,30 +189,40 @@ function M.format_lines(max_width)
 
     -- If the line is too long
     if vim.fn.strdisplaywidth(line) > max_width then
-      -- Find the last space character within the maximum line width
-      local space_index = max_width
-      while space_index > 0 and string.sub(line, space_index, space_index) ~= " " do
-        space_index = space_index - 1
+      -- Check if the line is a markdown separator (contains only "─")
+      if string.match(line, "^[─]+$") then
+        -- If it's a markdown separator, truncate the line at max_width
+        -- Notice we multiply max_width by 3, because this character takes up three bytes
+        line = string.sub(line, 1, max_width * 3)
+      else
+        -- Find the last space character within the maximum line width
+        local space_index = max_width
+        while space_index > 0 and string.sub(line, space_index, space_index) ~= " " do
+          space_index = space_index - 1
+        end
+
+        -- If no space character was found within max_width, just split at max_width
+        if space_index == 0 then
+          space_index = max_width
+        end
+
+        -- Split the line into two parts: the part that fits, and the remainder
+        local part1 = string.sub(line, 1, space_index)
+        local part2 = string.sub(line, space_index + 1)
+
+        -- Replace the current line with the part that fits
+        line = part1
+
+        -- Insert the remainder as a new line after the current line
+        vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
       end
-
-      -- If no space character was found within max_width, just split at max_width
-      if space_index == 0 then
-        space_index = max_width
-      end
-
-      -- Split the line into two parts: the part that fits, and the remainder
-      local part1 = string.sub(line, 1, space_index)
-      local part2 = string.sub(line, space_index + 1)
-
-      -- Replace the current line with the part that fits
-      vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { part1 })
-
-      -- Insert the remainder as a new line after the current line
-      vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
-    else
-      -- If the current line already fits, move to the next line
-      i = i + 1
     end
+
+    -- Replace the current line with the modified version
+    vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { line })
+
+    -- Move to the next line
+    i = i + 1
   end
 end
 
