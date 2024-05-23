@@ -583,9 +583,11 @@ append_keymap("n", "<MouseMove>", function(preceding)
     print("eagle.nvim: MouseMove detected at " .. os.clock())
   end
 
-  M.manage_windows()
-  isMouseMoving = true
-end, { silent = true })
+  vim.schedule(function()
+    M.manage_windows()
+    isMouseMoving = true
+  end)
+end, { silent = true, expr = true })
 
 -- in the future, I may need to bind this to CmdlineEnter and/or CmdWinEnter, instead of setting a keymap
 append_keymap({ "n", "v" }, ":", function(preceding)
