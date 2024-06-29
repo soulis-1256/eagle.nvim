@@ -231,7 +231,7 @@ function M.check_lsp_support()
   local filetype = vim.bo.filetype
 
   -- get all active clients
-  local clients = vim.lsp.get_active_clients()
+  local clients = vim.lsp.get_clients()
 
   -- filter the clients based on the filetype of the current buffer
   local relevant_clients = {}
