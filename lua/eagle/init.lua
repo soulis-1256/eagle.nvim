@@ -40,7 +40,7 @@ local last_pos = nil
 -- a bool variable to make sure process_mouse_pos() is only called once, when the mouse goes idle
 local lock_processing = false
 
-local renderDelayTimer = vim.loop.new_timer()
+local renderDelayTimer = vim.uv.new_timer()
 
 function M.create_eagle_win()
   -- return if the mouse has moved exactly before the eagle window was to be created
@@ -120,9 +120,6 @@ function M.create_eagle_win()
   end
   eagle_buf = vim.api.nvim_create_buf(false, true)
 
-  vim.api.nvim_buf_set_option(eagle_buf, "modifiable", true)
-  vim.api.nvim_buf_set_option(eagle_buf, "readonly", false)
-
   -- this "stylizes" the markdown messages (diagnostics + lsp info)
   -- and attaches them to the eagle_buf
   vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
@@ -130,8 +127,9 @@ function M.create_eagle_win()
   -- format long lines of the buffer
   M.format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
 
-  vim.api.nvim_buf_set_option(eagle_buf, "modifiable", false)
-  vim.api.nvim_buf_set_option(eagle_buf, "readonly", true)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = eagle_buf })
+  vim.api.nvim_set_option_value("readonly", true, { buf = eagle_buf })
+
 
   -- Iterate over each line in the buffer to find the max width
   local lines = vim.api.nvim_buf_get_lines(eagle_buf, 0, -1, false)
@@ -282,7 +280,6 @@ function M.load_lsp_info(callback)
     for _, result in pairs(results) do
       if result.result and result.result.contents then
         lsp_info = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
-        lsp_info = vim.lsp.util.trim_empty_lines(lsp_info)
       end
     end
 
@@ -651,7 +648,7 @@ function M.setup(opts)
   end
 
   -- start the timer that handles the whole plugin
-  vim.loop.new_timer():start(0, config.options.detect_idle_timer, vim.schedule_wrap(function()
+  vim.uv.new_timer():start(0, config.options.detect_idle_timer, vim.schedule_wrap(function()
     if config.options.debug_mode then
       print("eagle.nvim: Timer restarted at " .. os.clock())
     end
