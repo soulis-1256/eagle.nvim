@@ -2,9 +2,11 @@
 
 ***To soar like an eagle is to rise above all the obstacles that come your way.***
 
-> [!IMPORTANT]\
-> - [ ] Added keymap support for the eagle window
-> - [ ] Rework the code to support new features regarding keyboard workflow
+## Features in progress
+- [ ] Added keymap support for the eagle window
+- [ ] Rework the code to support new features regarding keyboard workflow
+
+---
 
 Following your mouse cursor, this plugin introduces a custom floating (popup) window that displays any Diagnostic (Error, Warning, Hint) with the help of the Diagnostic API of Neovim, along with LSP Information, from the LSP API.
 ### Overview
