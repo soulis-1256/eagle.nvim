@@ -1,6 +1,10 @@
 local M = {}
 
 local defaults = {
+  --keyboard mode disables mouse control
+  --set a custom keybind to use the plugin
+  keyboard_mode = false,
+
   --debug mode, runtime info
   --enable if neccessary
   debug_mode = false,
