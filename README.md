@@ -2,7 +2,7 @@
 
 ***To soar like an eagle is to rise above all the obstacles that come your way.***
 
-> [!NOTE]\
+> [!IMPORTANT]\
 > - [ ] Added keymap support for the eagle window
 > - [ ] Rework the code to support new features regarding keyboard workflow
 
