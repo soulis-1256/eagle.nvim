@@ -33,7 +33,7 @@ local function render_mouse_mode()
     renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
         -- if the window is open, we need to check if there are new diagnostics on the same line
         -- this is done with the highest priority, once the mouse goes idle
-        if util.load_diagnostics() then
+        if util.load_diagnostics(false) then
             if M.win_lock == 0 then
                 M.win_lock = 1
             else
@@ -44,7 +44,7 @@ local function render_mouse_mode()
                 vim.api.nvim_win_close(util.eagle_win, false)
                 M.win_lock = 0
 
-                -- restart the timer with half of config.options.render_delay,
+                -- restart the timer with half of <config.options.render_delay>,
                 -- invoking M.create_eagle_win() and returning immediately
                 renderDelayTimer:stop()
                 renderDelayTimer:start(math.floor(config.options.render_delay / 2), 0,
@@ -53,7 +53,7 @@ local function render_mouse_mode()
                         if not vim.deep_equal(mouse_pos, last_mouse_pos) then
                             M.win_lock = 0
                         else
-                            util.create_eagle_win()
+                            util.create_eagle_win(false)
                         end
                     end))
                 return
@@ -62,7 +62,7 @@ local function render_mouse_mode()
 
         if config.options.show_lsp_info then
             -- Pass a function to M.load_lsp_info() that calls M.create_eagle_win()
-            util.load_lsp_info(function()
+            util.load_lsp_info(false, function()
                 if #util.diagnostic_messages == 0 and #util.lsp_info == 0 then
                     return
                 end
@@ -70,11 +70,11 @@ local function render_mouse_mode()
                 if not vim.deep_equal(mouse_pos, last_mouse_pos) then
                     M.win_lock = 0
                 else
-                    util.create_eagle_win()
+                    util.create_eagle_win(false)
                 end
             end)
         else
-            -- If show_lsp_info is false, call M.create_eagle_win() directly
+            -- If <config.options.show_lsp_info> is false, call M.create_eagle_win() directly
             if #util.diagnostic_messages == 0 then
                 return
             end
@@ -82,7 +82,7 @@ local function render_mouse_mode()
             if not vim.deep_equal(mouse_pos, last_mouse_pos) then
                 M.win_lock = 0
             else
-                util.create_eagle_win()
+                util.create_eagle_win(false)
             end
         end
     end))
@@ -173,7 +173,7 @@ function M.manage_windows()
 
     -- if the mouse pointer is inside the eagle window and it's not already in focus, set it as the focused window
     if isMouseWithinWestSide and isMouseWithinEastSide and isMouseWithinNorthSide and isMouseWithinSouthSide then
-        if vim.api.nvim_get_current_win() ~= util.eagle_win then
+        if vim.api.nvim_get_current_win() ~= util.eagle_win and vim.api.nvim_win_get_config(util.eagle_win).focusable then
             vim.api.nvim_set_current_win(util.eagle_win)
             vim.api.nvim_win_set_cursor(util.eagle_win, { 1, 0 })
         end
@@ -184,8 +184,11 @@ function M.manage_windows()
                 return
             end
         end
-        vim.api.nvim_win_close(util.eagle_win, false)
-        M.win_lock = 0
+        -- focusable if created by the keyboard mode
+        if vim.api.nvim_win_get_config(util.eagle_win).focusable then
+            vim.api.nvim_win_close(util.eagle_win, false)
+            M.win_lock = 0
+        end
     end
 end
 

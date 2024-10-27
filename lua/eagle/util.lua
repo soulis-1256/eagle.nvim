@@ -12,8 +12,9 @@ local eagle_buf = nil
 --load and sort all the diagnostics of the current buffer
 --M.sorted_diagnostics = {}
 
-local function getpos()
-    if config.options.keyboard_mode then
+--keyboard_event is the same as with M.create_eagle_win(keyboard_event)
+local function getpos(keyboard_event)
+    if keyboard_event then
         local cursor_pos = vim.fn.getcurpos()
         return { row = cursor_pos[2] - 1, col = cursor_pos[3] - 1 }
     else
@@ -111,7 +112,8 @@ local function check_lsp_support()
     return false
 end
 
-function M.load_lsp_info(callback)
+--keyboard_event is the same as with M.create_eagle_win(keyboard_event)
+function M.load_lsp_info(keyboard_event, callback)
     --Ideally we need this binded with Event(s)
     --As of right now, WinEnter is a partial solution,
     --but it's not enough (for buffers etc).
@@ -122,7 +124,7 @@ function M.load_lsp_info(callback)
 
     M.lsp_info = {}
 
-    local pos = getpos()
+    local pos = getpos(keyboard_event)
     local position_params = vim.lsp.util.make_position_params()
 
     --print("posl.row: " .. pos.row .. " pos.col: " .. pos.col)
@@ -145,8 +147,9 @@ function M.load_lsp_info(callback)
     end)
 end
 
-function M.load_diagnostics()
-    local pos = getpos()
+--keyboard_event is the same as with M.create_eagle_win(keyboard_event)
+function M.load_diagnostics(keyboard_event)
+    local pos = getpos(keyboard_event)
     local diagnostics
     local prev_diagnostics = M.diagnostic_messages
     M.diagnostic_messages = {}
@@ -216,7 +219,9 @@ function M.load_diagnostics()
     return true
 end
 
-function M.create_eagle_win()
+--keyboard_event is true when the eagle window was invoked using the keyboard and not the mouse
+--useful for hybrid scenario (keyboard + mouse enabled at the same time)
+function M.create_eagle_win(keyboard_event)
     local messages = {}
 
     if #M.diagnostic_messages > 0 then
@@ -316,14 +321,20 @@ function M.create_eagle_win()
     vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.border_color })
 
     -- Determine position based on keyboard_mode setting
-    local row = nil
-    local relative = nil
-    if config.options.keyboard_mode then
+    local row
+    local relative
+    local focusable
+    if keyboard_event then
         row = vim.fn.winline()
         relative = 'cursor'
+        --setting focusable to false it two fold
+        --we can track the property to know if it was keyboard-related
+        --and we can disable the mouse being able to focus on it
+        focusable = false
     else
         row = vim.fn.getmousepos().screenrow
         relative = 'mouse'
+        focusable = true
     end
 
     if row > math.floor(vim.o.lines / 2) then
@@ -342,7 +353,7 @@ function M.create_eagle_win()
         height = height,
         style = "minimal",
         border = config.options.border,
-        focusable = true,
+        focusable = focusable,
     })
 end
 

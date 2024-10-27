@@ -36,7 +36,7 @@ function M.setup(opts)
     config.options.max_height_factor = 2.5
   end
 
-  if not config.options.keyboard_mode then
+  if config.options.mouse_mode then
     local append_keymap = require("eagle.keymap")
 
     append_keymap("n", "<MouseMove>", function(preceding)
@@ -52,7 +52,10 @@ function M.setup(opts)
     append_keymap({ "n", "v" }, ":", function(preceding)
       preceding()
 
-      if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) and vim.api.nvim_get_current_win() == util.eagle_win and config.options.close_on_cmd then
+      if util.eagle_win
+          and vim.api.nvim_win_is_valid(util.eagle_win)
+          and vim.api.nvim_get_current_win() == util.eagle_win and config.options.close_on_cmd
+          and vim.api.nvim_win_get_config(util.eagle_win).focusable then
         vim.api.nvim_win_close(util.eagle_win, false)
         mouse_handler.win_lock = 0
       end
@@ -89,7 +92,9 @@ function M.setup(opts)
         end
       end
     end))
-  else
+  end
+
+  if config.options.keyboard_mode then
     -- Expose the function so it can be called from a keybinding
     vim.api.nvim_create_user_command('EagleWin', keyboard_handler.render_keyboard_mode, {})
   end

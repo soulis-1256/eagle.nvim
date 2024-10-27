@@ -1,9 +1,14 @@
 local M = {}
 
 local defaults = {
+  --mouse mode is the default mode for this plugin
+  --disable if you want pure keyboard mode
+  mouse_mode = true,
+
   --keyboard mode disables mouse control
   --set a custom keybind to use the plugin
   --you can disable vim.o.mousemoveevent if you enable this option
+  --you can have both keyboard_mode and mouse_mode enabled at the same time
   keyboard_mode = false,
 
   --logging, runtime info
