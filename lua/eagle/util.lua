@@ -238,8 +238,8 @@ local function stylize_markdown_buffer(bufnr, contents, opts)
             table.insert(normalized, string.rep("─", width))
         else
             if in_code_block then
-                -- Indent code blocks by 2 spaces and skip wrapping within them
-                table.insert(normalized, '  ' .. line)
+                --skip wrapping within code blocks
+                table.insert(normalized, line)
             else
                 -- Wrap non-code lines at the specified width
                 local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
