@@ -2,20 +2,13 @@
 
 ***To soar like an eagle is to rise above all obstacles.***
 
-## Features in progress
-- [x] Added keymap support for the eagle window
-- [x] Rework the code to support new features regarding keyboard workflow
-- [ ] Rework the markdown formatting to be the same as `vim.lsp.buf.hover`
-
----
-
-Following either your mouse cursor or your neovim cursor, this plugin provides a custom floating (popup) window that displays any diagnostic (Error, Warning, Hint) returned by the [Diagnostic API](https://neovim.io/doc/user/diagnostic.html), along with lsp information returned by the [LSP API](https://neovim.io/doc/user/lsp.html).
+Following either your mouse or your cursor, this plugin provides a custom floating (popup) window that displays any diagnostic (Error, Warning, Hint) returned by the [Diagnostic API](https://neovim.io/doc/user/diagnostic.html), along with lsp information returned by the [LSP API](https://neovim.io/doc/user/lsp.html).
 ### Overview
 Enhance your Neovim experience by utilizing the following features:
 - Detect when the mouse hovers over an underlined part of code. Once it goes idle (for a [configurable](./lua/eagle/config.lua) amount of time), the window will be invoked. I tried to mirror the way conventional GUI Editors like VS Code work.
 - Display the Diagnostics under the current mouse position. If there are multiple diagnostics on the same position (ie Error and Warning), display them all in a numbered list. For better user experience, the window is re-rendered only once the mouse encounters a "special" character (like "{}.?:" and more). This means that it stays open if it detects mouse movement and you are still hovering over the same variable/function/operator name.
 - Show LSP information (the same contents as with vim.lsp.buf.hover()).
-- **Recently added opt-in support for keybinds, which disables all mouse control.**
+- **Recently added opt-in support for keyboard control, which can work together with mouse control.**
 
 ![showcase_eagle](https://github.com/soulis-1256/eagle.nvim/assets/118274635/ec28d139-0087-4e0d-a52b-c217231b846e)
 As you can see, the plugin's window is displaying all the information related to each position.
@@ -47,6 +40,7 @@ require("eagle").setup({
 You can find the description of all the options in [config.lua](./lua/eagle/config.lua). Here is a concise list:
 
 ```lua
+  improved_markdown = true,
   mouse_mode = true,
   keyboard_mode = false,
   logging = false,

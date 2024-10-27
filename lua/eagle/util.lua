@@ -220,37 +220,43 @@ end
 
 local function stylize_markdown_buffer(bufnr, contents, opts)
     opts = opts or {}
-    -- Clean up input: trim empty lines
     contents = vim.split(table.concat(contents, '\n'), '\n', { trimempty = true })
 
-    -- Calculate width if not provided
+    -- Set default width if not provided
     local width = opts.width or vim.api.nvim_win_get_width(0)
-
-    -- Normalize markdown content
-    -- This is similar to what _normalize_markdown does in the original function
     local normalized = {}
+    local in_code_block = false
+
     for _, line in ipairs(contents) do
-        -- Indent code blocks by 2 spaces
         if line:match("^```") then
+            -- Toggle code block status
+            in_code_block = not in_code_block
+            -- Add the line to track where code blocks start and end
             table.insert(normalized, line)
+        elseif line == "---" then
+            -- Render a full-width horizontal line for `---`
+            table.insert(normalized, string.rep("─", width))
         else
-            -- Wrap text at the specified width
-            local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
-            for _, wrapped_line in ipairs(wrapped) do
-                table.insert(normalized, wrapped_line)
+            if in_code_block then
+                -- Indent code blocks by 2 spaces and skip wrapping within them
+                table.insert(normalized, '  ' .. line)
+            else
+                -- Wrap non-code lines at the specified width
+                local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
+                vim.list_extend(normalized, wrapped)
             end
         end
     end
 
-    -- Set buffer properties
+    -- Set up the buffer for markdown syntax
     vim.bo[bufnr].filetype = 'markdown'
     vim.treesitter.start(bufnr)
-
-    -- Set the contents in the buffer
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, normalized)
 
-    return bufnr
+    vim.wo[0].conceallevel = config.options.conceallevel
+    vim.wo[0].concealcursor = config.options.concealcursor
 end
+
 
 --keyboard_event is true when the eagle window was invoked using the keyboard and not the mouse
 --useful for hybrid scenario (keyboard + mouse enabled at the same time)
@@ -326,7 +332,12 @@ function M.create_eagle_win(keyboard_event)
 
     -- this "stylizes" the markdown messages (diagnostics + lsp info)
     -- and attaches them to the eagle_buf
-    stylize_markdown_buffer(eagle_buf, messages, {})
+    if config.options.improved_markdown then
+        stylize_markdown_buffer(eagle_buf, messages, {})
+    else
+        --old way, not recommended
+        vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+    end
 
     -- format long lines of the buffer
     format_lines(math.floor(vim.o.columns / config.options.max_width_factor))

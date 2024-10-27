@@ -1,6 +1,15 @@
 local M = {}
 
 local defaults = {
+  --see https://neovim.io/doc/user/options.html for both of these options
+  --redundant when <improved_markdown> is disabled
+  concealcursor = "nc",
+  conceallevel = 3,
+
+  --added an improved way to stylize markdown that is visually identical to vim.lsp.buf.hover()
+  --disable if you encounter any issues
+  improved_markdown = true,
+
   --mouse mode is the default mode for this plugin
   --disable if you want pure keyboard mode
   mouse_mode = true,
