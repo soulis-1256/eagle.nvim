@@ -1,9 +1,29 @@
 local M = {}
 
 local defaults = {
-  --debug mode, runtime info
-  --enable if neccessary
-  debug_mode = false,
+  --see https://neovim.io/doc/user/options.html for both of these options
+  --redundant when <improved_markdown> is disabled
+  concealcursor = "nc",
+  conceallevel = 3,
+
+  --added an improved way to stylize markdown that is visually identical to vim.lsp.buf.hover()
+  --disable if you encounter any issues
+  improved_markdown = true,
+
+  --mouse mode is the default mode for this plugin
+  --disable if you want pure keyboard mode
+  mouse_mode = true,
+
+  --keyboard mode disables mouse control
+  --set a custom keybind to use the plugin
+  --you can disable vim.o.mousemoveevent if you enable this option
+  --you can have both keyboard_mode and mouse_mode enabled at the same time
+  keyboard_mode = false,
+
+  --logging, runtime info
+  --enable if the plugin isn't working as expected
+  --and check with ':messages'
+  logging = false,
 
   -- close the eagle window when you execute a command (pressing : on normal or visual mode)
   -- this is to avoid weird things happening when the eagle window is in focus
@@ -40,7 +60,7 @@ local defaults = {
 
   --offsets that can move the window in any direction
   --you can experiment with values and see what you like
-  window_row = 0,
+  window_row = 1,
   window_col = 5,
 
   --window border options, from the api docs
