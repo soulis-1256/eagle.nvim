@@ -127,7 +127,6 @@ function M.load_lsp_info(keyboard_event, callback)
     local pos = getpos(keyboard_event)
     local position_params = vim.lsp.util.make_position_params()
 
-    --print("posl.row: " .. pos.row .. " pos.col: " .. pos.col)
     position_params.position.line = pos.row
     position_params.position.character = pos.col
 
@@ -219,6 +218,40 @@ function M.load_diagnostics(keyboard_event)
     return true
 end
 
+local function stylize_markdown_buffer(bufnr, contents, opts)
+    opts = opts or {}
+    -- Clean up input: trim empty lines
+    contents = vim.split(table.concat(contents, '\n'), '\n', { trimempty = true })
+
+    -- Calculate width if not provided
+    local width = opts.width or vim.api.nvim_win_get_width(0)
+
+    -- Normalize markdown content
+    -- This is similar to what _normalize_markdown does in the original function
+    local normalized = {}
+    for _, line in ipairs(contents) do
+        -- Indent code blocks by 2 spaces
+        if line:match("^```") then
+            table.insert(normalized, line)
+        else
+            -- Wrap text at the specified width
+            local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
+            for _, wrapped_line in ipairs(wrapped) do
+                table.insert(normalized, wrapped_line)
+            end
+        end
+    end
+
+    -- Set buffer properties
+    vim.bo[bufnr].filetype = 'markdown'
+    vim.treesitter.start(bufnr)
+
+    -- Set the contents in the buffer
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, normalized)
+
+    return bufnr
+end
+
 --keyboard_event is true when the eagle window was invoked using the keyboard and not the mouse
 --useful for hybrid scenario (keyboard + mouse enabled at the same time)
 function M.create_eagle_win(keyboard_event)
@@ -293,7 +326,7 @@ function M.create_eagle_win(keyboard_event)
 
     -- this "stylizes" the markdown messages (diagnostics + lsp info)
     -- and attaches them to the eagle_buf
-    vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+    stylize_markdown_buffer(eagle_buf, messages, {})
 
     -- format long lines of the buffer
     format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
