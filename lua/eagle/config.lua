@@ -3,11 +3,13 @@ local M = {}
 local defaults = {
   --keyboard mode disables mouse control
   --set a custom keybind to use the plugin
+  --you can disable vim.o.mousemoveevent if you enable this option
   keyboard_mode = false,
 
-  --debug mode, runtime info
-  --enable if neccessary
-  debug_mode = false,
+  --logging, runtime info
+  --enable if the plugin isn't working as expected
+  --and check with ':messages'
+  logging = false,
 
   -- close the eagle window when you execute a command (pressing : on normal or visual mode)
   -- this is to avoid weird things happening when the eagle window is in focus

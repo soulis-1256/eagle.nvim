@@ -14,7 +14,7 @@ function M.setup(opts)
   -- Call the config setup functon to initialize the options
   config.setup(opts)
 
-  if config.options.debug_mode then
+  if config.options.logging then
     print("eagle.nvim is running")
   end
 
@@ -40,10 +40,6 @@ function M.setup(opts)
 
     append_keymap("n", "<MouseMove>", function(preceding)
       preceding()
-
-      if config.options.debug_mode then
-        print("eagle.nvim: MouseMove detected at " .. os.date())
-      end
 
       vim.schedule(function()
         mouse_handler.manage_windows()
@@ -77,10 +73,6 @@ function M.setup(opts)
     -- start the timer that enables mouse control
     -- runs periodically every <config.options.detect_idle_timer> ms
     vim.uv.new_timer():start(0, config.options.detect_idle_timer, vim.schedule_wrap(function()
-      if config.options.debug_mode then
-        print("eagle.nvim: mouse timer callback was invoked at " .. os.date())
-      end
-
       -- check if the view is scrolled, when the mouse is idle and the eagle window is not focused
       if not isMouseMoving and vim.api.nvim_get_current_win() ~= util.eagle_win then
         mouse_handler.handle_scroll()
@@ -98,7 +90,7 @@ function M.setup(opts)
     end))
   else
     -- Expose the function so it can be called from a keybinding
-    vim.api.nvim_create_user_command('CreateEagleWin', util.create_eagle_win, {})
+    vim.api.nvim_create_user_command('CreateEagleWin', util.render_keyboard_mode, {})
   end
 
   vim.api.nvim_create_autocmd("CursorMoved", {

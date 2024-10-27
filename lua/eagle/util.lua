@@ -12,13 +12,217 @@ local eagle_buf = nil
 --load and sort all the diagnostics of the current buffer
 --M.sorted_diagnostics = {}
 
+local function getpos()
+    if config.options.keyboard_mode then
+        local cursor_pos = vim.fn.getcurpos()
+        return { row = cursor_pos[2], col = cursor_pos[3] }
+    else
+        local mouse_pos = vim.fn.getmousepos()
+        return { row = mouse_pos.line - 1, col = mouse_pos.column - 1 }
+    end
+end
+
+function M.sort_buf_diagnostics()
+    M.sorted_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
+
+    table.sort(M.sorted_diagnostics, function(a, b)
+        return a.lnum < b.lnum
+    end)
+end
+
+-- format the lines of eagle_buf, in order to fit vim.o.columns / config.options.max_width_factor
+-- for the case where an href link is splitted, I'm open to discussions on how to handle it
+local function format_lines(max_width)
+    if not eagle_buf then
+        -- Don't call format_lines if eagle_buf has not been initialized
+        return
+    end
+
+    -- Iterate over the lines in the buffer
+    local i = 0
+    while i < vim.api.nvim_buf_line_count(eagle_buf) do
+        -- Get the current line
+        local line = vim.api.nvim_buf_get_lines(eagle_buf, i, i + 1, false)[1]
+
+        -- If the line is too long
+        if vim.fn.strdisplaywidth(line) > max_width then
+            -- Check if the line is a markdown separator (contains only "─")
+            if string.match(line, "^[─]+$") then
+                -- If it's a markdown separator, truncate the line at max_width
+                -- Notice we multiply max_width by 3, because this character takes up three bytes
+                line = string.sub(line, 1, max_width * 3)
+            else
+                -- Find the last space character within the maximum line width
+                local space_index = max_width
+                while space_index > 0 and string.sub(line, space_index, space_index) ~= " " do
+                    space_index = space_index - 1
+                end
+
+                -- If no space character was found within max_width, just split at max_width
+                if space_index == 0 then
+                    space_index = max_width
+                end
+
+                -- Split the line into two parts: the part that fits, and the remainder
+                local part1 = string.sub(line, 1, space_index)
+                local part2 = string.sub(line, space_index + 1)
+
+                -- Replace the current line with the part that fits
+                line = part1
+
+                -- Insert the remainder as a new line after the current line
+                vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
+            end
+        end
+
+        -- Replace the current line with the modified version
+        vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { line })
+
+        -- Move to the next line
+        i = i + 1
+    end
+end
+
+local function check_lsp_support()
+    -- get the filetype of the current buffer
+    local filetype = vim.bo.filetype
+
+    -- get all active clients
+    local clients = vim.lsp.get_clients()
+
+    -- filter the clients based on the filetype of the current buffer
+    local relevant_clients = {}
+    for _, client in ipairs(clients) do
+        if client.config.filetypes and vim.tbl_contains(client.config.filetypes, filetype) then
+            table.insert(relevant_clients, client)
+        end
+    end
+
+    -- check if any of the relevant clients support textDocument/hover
+    for _, client in ipairs(relevant_clients) do
+        if client.supports_method("textDocument/hover") then
+            if config.options.logging then
+                print("Found LSP client supporting textDocument/hover: " .. client.name)
+            end
+            return true
+        end
+    end
+
+    return false
+end
+
+function M.load_lsp_info(callback)
+    --Ideally we need this binded with Event(s)
+    --As of right now, WinEnter is a partial solution,
+    --but it's not enough (for buffers etc).
+    --BufEnter doesn't seem to work properly
+    if not check_lsp_support() then
+        return
+    end
+
+    M.lsp_info = {}
+
+    local pos = getpos()
+    local position_params = vim.lsp.util.make_position_params()
+
+    position_params.position.line = pos.row
+    position_params.position.character = pos.col
+
+    local bufnr = vim.api.nvim_get_current_buf()
+
+    -- asynchronous, so we need to use a callback function
+    -- buf_request_sync contains vim.wait which is unwanted
+    vim.lsp.buf_request_all(bufnr, "textDocument/hover", position_params, function(results)
+        for _, result in pairs(results) do
+            if result.result and result.result.contents then
+                M.lsp_info = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
+            end
+        end
+
+        -- Call the callback function after lsp_info has been populated
+        callback()
+    end)
+end
+
+function M.load_diagnostics()
+    local pos = getpos()
+    local diagnostics
+    local prev_diagnostics = M.diagnostic_messages
+    M.diagnostic_messages = {}
+
+    local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), pos.row, pos.col)
+    for _, extmark in ipairs(pos_info.extmarks) do
+        local extmark_str = vim.inspect(extmark)
+        if string.find(extmark_str, "Diagnostic") then
+            diagnostics = vim.diagnostic.get(0, { lnum = pos.row })
+
+            --binary search on the sorted sorted_diagnostics table
+            --needed for nested underlines (poor API)
+            if #diagnostics == 0 then
+                local outer_line
+                if M.sorted_diagnostics then
+                    local low, high = 1, #M.sorted_diagnostics
+                    while low <= high do
+                        local mid = math.floor((low + high) / 2)
+                        local diagnostic = M.sorted_diagnostics[mid]
+                        if diagnostic.lnum < pos.row then
+                            outer_line = diagnostic.lnum
+                            low = mid + 1
+                        else
+                            high = mid - 1
+                        end
+                    end
+                end
+                diagnostics = vim.diagnostic.get(0, { lnum = outer_line })
+            end
+        end
+    end
+
+    if diagnostics and #diagnostics > 0 then
+        for _, diagnostic in ipairs(diagnostics) do
+            local cursor_in_v_bounds, cursor_in_h_bounds
+
+            -- check if the mouse is within the vertical bounds of the diagnostic (single-line or otherwise)
+            cursor_in_v_bounds = (diagnostic.lnum <= pos.row) and
+                (pos.row <= diagnostic.end_lnum)
+
+            if cursor_in_v_bounds then
+                if diagnostic.lnum == diagnostic.end_lnum then
+                    -- if its a single-line diagnostic
+
+                    -- check if the mouse is within the horizontal bounds of the diagnostic
+                    cursor_in_h_bounds = (diagnostic.col <= pos.col) and
+                        (pos.col < diagnostic.end_col)
+                else
+                    -- if its a multi-line diagnostic (nested)
+
+                    -- suppose we are always within the horizontal bounds of the diagnostic
+                    -- other checks (EOL, whitespace etc) were handled in process_mouse_pos (already optimized)
+                    cursor_in_h_bounds = true
+                end
+            end
+
+            if cursor_in_v_bounds and cursor_in_h_bounds then
+                table.insert(M.diagnostic_messages, diagnostic)
+            end
+        end
+    end
+
+    if not vim.deep_equal(M.diagnostic_messages, prev_diagnostics) then
+        return false
+    end
+
+    return true
+end
+
 function M.create_eagle_win()
     -- Determine position based on keyboard_mode setting
     local row_pos, col_pos
     if config.options.keyboard_mode then
-        local cursor_pos = vim.fn.getcurpos()
-        row_pos = cursor_pos[2] -- cursor line position
-        col_pos = cursor_pos[3] -- cursor column position
+        local cursor_pos = vim.api.nvim_win_get_cursor(0)
+        row_pos = cursor_pos[1] -- cursor line position
+        col_pos = cursor_pos[2] -- cursor column position
+        print("row_pos: " .. row_pos .. " col_pos: " .. col_pos)
     else
         local mouse_pos = vim.fn.getmousepos()
         row_pos = mouse_pos.screenrow
@@ -99,7 +303,7 @@ function M.create_eagle_win()
     vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
 
     -- format long lines of the buffer
-    M.format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
+    format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
 
     vim.api.nvim_set_option_value("modifiable", false, { buf = eagle_buf })
     vim.api.nvim_set_option_value("readonly", true, { buf = eagle_buf })
@@ -141,200 +345,24 @@ function M.create_eagle_win()
     })
 end
 
--- format the lines of eagle_buf, in order to fit vim.o.columns / config.options.max_width_factor
--- for the case where an href link is splitted, I'm open to discussions on how to handle it
-function M.format_lines(max_width)
-    if not eagle_buf then
-        -- Don't call format_lines if eagle_buf has not been created and filled with contents
-        return
-    end
+-- Function for keyboard-driven rendering (no delays, no mouse checks)
+function M.render_keyboard_mode()
+    M.load_diagnostics()
+    print(os.clock())
 
-    -- Iterate over the lines in the buffer
-    local i = 0
-    while i < vim.api.nvim_buf_line_count(eagle_buf) do
-        -- Get the current line
-        local line = vim.api.nvim_buf_get_lines(eagle_buf, i, i + 1, false)[1]
-
-        -- If the line is too long
-        if vim.fn.strdisplaywidth(line) > max_width then
-            -- Check if the line is a markdown separator (contains only "─")
-            if string.match(line, "^[─]+$") then
-                -- If it's a markdown separator, truncate the line at max_width
-                -- Notice we multiply max_width by 3, because this character takes up three bytes
-                line = string.sub(line, 1, max_width * 3)
-            else
-                -- Find the last space character within the maximum line width
-                local space_index = max_width
-                while space_index > 0 and string.sub(line, space_index, space_index) ~= " " do
-                    space_index = space_index - 1
-                end
-
-                -- If no space character was found within max_width, just split at max_width
-                if space_index == 0 then
-                    space_index = max_width
-                end
-
-                -- Split the line into two parts: the part that fits, and the remainder
-                local part1 = string.sub(line, 1, space_index)
-                local part2 = string.sub(line, space_index + 1)
-
-                -- Replace the current line with the part that fits
-                line = part1
-
-                -- Insert the remainder as a new line after the current line
-                vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
+    if config.options.show_lsp_info then
+        M.load_lsp_info(function()
+            if #M.diagnostic_messages == 0 and #M.lsp_info == 0 then
+                return
             end
+            M.create_eagle_win()
+        end)
+    else
+        if #M.diagnostic_messages == 0 then
+            return
         end
-
-        -- Replace the current line with the modified version
-        vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { line })
-
-        -- Move to the next line
-        i = i + 1
+        M.create_eagle_win()
     end
-end
-
-function M.check_lsp_support()
-    -- get the filetype of the current buffer
-    local filetype = vim.bo.filetype
-
-    -- get all active clients
-    local clients = vim.lsp.get_clients()
-
-    -- filter the clients based on the filetype of the current buffer
-    local relevant_clients = {}
-    for _, client in ipairs(clients) do
-        if client.config.filetypes and vim.tbl_contains(client.config.filetypes, filetype) then
-            table.insert(relevant_clients, client)
-        end
-    end
-
-    -- check if any of the relevant clients support textDocument/hover
-    for _, client in ipairs(relevant_clients) do
-        if client.supports_method("textDocument/hover") then
-            if config.options.debug_mode then
-                print("Found LSP client supporting textDocument/hover: " .. client.name)
-            end
-            return true
-        end
-    end
-
-    return false
-end
-
-function M.load_lsp_info(callback)
-    --Ideally we need this binded with Event(s)
-    --As of right now, WinEnter is a partial solution,
-    --but it's not enough (for buffers etc).
-    --BufEnter doesn't seem to work properly
-    if not M.check_lsp_support() then
-        return
-    end
-
-    M.lsp_info = {}
-
-    local mouse_pos = vim.fn.getmousepos()
-    local line = mouse_pos.line - 1
-    local col = mouse_pos.column - 1
-
-    local position_params = vim.lsp.util.make_position_params()
-
-    position_params.position.line = line
-    position_params.position.character = col
-
-    local bufnr = vim.api.nvim_get_current_buf()
-
-    -- asynchronous, so we need to use a callback function
-    -- buf_request_sync contains vim.wait which is unwanted
-    vim.lsp.buf_request_all(bufnr, "textDocument/hover", position_params, function(results)
-        for _, result in pairs(results) do
-            if result.result and result.result.contents then
-                M.lsp_info = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
-            end
-        end
-
-        -- Call the callback function after lsp_info has been populated
-        callback()
-    end)
-end
-
-function M.sort_buf_diagnostics()
-    M.sorted_diagnostics = vim.diagnostic.get(0, { bufnr = '%' })
-
-    table.sort(M.sorted_diagnostics, function(a, b)
-        return a.lnum < b.lnum
-    end)
-end
-
-function M.load_diagnostics()
-    local mouse_pos = vim.fn.getmousepos()
-    local diagnostics
-    local prev_diagnostics = M.diagnostic_messages
-    M.diagnostic_messages = {}
-
-    local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), mouse_pos.line - 1, mouse_pos.column - 1)
-    for _, extmark in ipairs(pos_info.extmarks) do
-        local extmark_str = vim.inspect(extmark)
-        if string.find(extmark_str, "Diagnostic") then
-            diagnostics = vim.diagnostic.get(0, { lnum = mouse_pos.line - 1 })
-
-            --binary search on the sorted sorted_diagnostics table
-            --needed for nested underlines (poor API)
-            if #diagnostics == 0 then
-                local outer_line
-                if M.sorted_diagnostics then
-                    local low, high = 1, #M.sorted_diagnostics
-                    while low <= high do
-                        local mid = math.floor((low + high) / 2)
-                        local diagnostic = M.sorted_diagnostics[mid]
-                        if diagnostic.lnum < mouse_pos.line - 1 then
-                            outer_line = diagnostic.lnum
-                            low = mid + 1
-                        else
-                            high = mid - 1
-                        end
-                    end
-                end
-                diagnostics = vim.diagnostic.get(0, { lnum = outer_line })
-            end
-        end
-    end
-
-    if diagnostics and #diagnostics > 0 then
-        for _, diagnostic in ipairs(diagnostics) do
-            local isMouseWithinVerticalBounds, isMouseWithinHorizontalBounds
-
-            -- check if the mouse is within the vertical bounds of the diagnostic (single-line or otherwise)
-            isMouseWithinVerticalBounds = (diagnostic.lnum <= mouse_pos.line - 1) and
-                (mouse_pos.line - 1 <= diagnostic.end_lnum)
-
-            if isMouseWithinVerticalBounds then
-                if diagnostic.lnum == diagnostic.end_lnum then
-                    -- if its a single-line diagnostic
-
-                    -- check if the mouse is within the horizontal bounds of the diagnostic
-                    isMouseWithinHorizontalBounds = (diagnostic.col <= mouse_pos.column - 1) and
-                        (mouse_pos.column <= diagnostic.end_col)
-                else
-                    -- if its a multi-line diagnostic (nested)
-
-                    -- suppose we are always within the horizontal bounds of the diagnostic
-                    -- other checks (EOL, whitespace etc) were handled in process_mouse_pos (already optimized)
-                    isMouseWithinHorizontalBounds = true
-                end
-            end
-
-            if isMouseWithinVerticalBounds and isMouseWithinHorizontalBounds then
-                table.insert(M.diagnostic_messages, diagnostic)
-            end
-        end
-    end
-
-    if not vim.deep_equal(M.diagnostic_messages, prev_diagnostics) then
-        return false
-    end
-
-    return true
 end
 
 return M

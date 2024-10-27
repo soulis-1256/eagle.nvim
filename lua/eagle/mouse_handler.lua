@@ -26,7 +26,7 @@ for a window to be created, especially during vim.lsp.buf_request_sync()
 that contains vim.wait()]]
 --M.win_lock = 0
 
-local function render()
+local function render_mouse_mode()
     renderDelayTimer:stop()
 
     last_mouse_pos = vim.fn.getmousepos()
@@ -126,7 +126,7 @@ function M.process_mouse_pos()
     end
 
     if vim.api.nvim_get_current_win() ~= util.eagle_win then
-        render()
+        render_mouse_mode()
     end
 end
 
