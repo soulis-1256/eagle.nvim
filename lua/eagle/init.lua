@@ -1,6 +1,7 @@
 local config = require('eagle.config')
 local util = require('eagle.util')
 local mouse_handler = require('eagle.mouse_handler')
+local keyboard_handler = require('eagle.keyboard_handler')
 
 local M = {}
 
@@ -90,7 +91,7 @@ function M.setup(opts)
     end))
   else
     -- Expose the function so it can be called from a keybinding
-    vim.api.nvim_create_user_command('CreateEagleWin', util.render_keyboard_mode, {})
+    vim.api.nvim_create_user_command('CreateEagleWin', keyboard_handler.render_keyboard_mode, {})
   end
 
   vim.api.nvim_create_autocmd("CursorMoved", {

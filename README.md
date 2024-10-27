@@ -62,7 +62,7 @@ You can find the description of all the options in [config.lua](./lua/eagle/conf
 ```
 
 > [!NOTE]\
-> The plugin is confirmed to work on Neovim versions 0.9.x and up to 0.10.2
+> The plugin is confirmed to work on build version 0.10.2 (api level 12)
 
 ### Support
 You can support me by donating through [PayPal](https://www.paypal.com/paypalme/soulis1256) and by providing your feedback. You can message me on [Discord](https://discord.com/users/319490489411829761).

@@ -46,7 +46,7 @@ local defaults = {
 
   --offsets that can move the window in any direction
   --you can experiment with values and see what you like
-  window_row = 0,
+  window_row = 1,
   window_col = 5,
 
   --window border options, from the api docs

@@ -15,7 +15,7 @@ local eagle_buf = nil
 local function getpos()
     if config.options.keyboard_mode then
         local cursor_pos = vim.fn.getcurpos()
-        return { row = cursor_pos[2], col = cursor_pos[3] }
+        return { row = cursor_pos[2] - 1, col = cursor_pos[3] - 1 }
     else
         local mouse_pos = vim.fn.getmousepos()
         return { row = mouse_pos.line - 1, col = mouse_pos.column - 1 }
@@ -125,6 +125,7 @@ function M.load_lsp_info(callback)
     local pos = getpos()
     local position_params = vim.lsp.util.make_position_params()
 
+    --print("posl.row: " .. pos.row .. " pos.col: " .. pos.col)
     position_params.position.line = pos.row
     position_params.position.character = pos.col
 
@@ -216,19 +217,6 @@ function M.load_diagnostics()
 end
 
 function M.create_eagle_win()
-    -- Determine position based on keyboard_mode setting
-    local row_pos, col_pos
-    if config.options.keyboard_mode then
-        local cursor_pos = vim.api.nvim_win_get_cursor(0)
-        row_pos = cursor_pos[1] -- cursor line position
-        col_pos = cursor_pos[2] -- cursor column position
-        print("row_pos: " .. row_pos .. " col_pos: " .. col_pos)
-    else
-        local mouse_pos = vim.fn.getmousepos()
-        row_pos = mouse_pos.screenrow
-        col_pos = mouse_pos.screencol
-    end
-
     local messages = {}
 
     if #M.diagnostic_messages > 0 then
@@ -324,45 +312,38 @@ function M.create_eagle_win()
     local width = math.max(max_line_width + config.options.scrollbar_offset + 1,
         vim.fn.strdisplaywidth(config.options.title))
 
-    if row_pos > math.floor(vim.o.lines / 2) then
-        row_pos = row_pos - height - 3
-    end
-
     vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.title_color })
     vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.border_color })
+
+    -- Determine position based on keyboard_mode setting
+    local row = nil
+    local relative = nil
+    if config.options.keyboard_mode then
+        row = vim.fn.winline()
+        relative = 'cursor'
+    else
+        row = vim.fn.getmousepos().screenrow
+        relative = 'mouse'
+    end
+
+    if row > math.floor(vim.o.lines / 2) then
+        row = config.options.window_row - height - 3
+    else
+        row = config.options.window_row
+    end
 
     M.eagle_win = vim.api.nvim_open_win(eagle_buf, false, {
         title = { { config.options.title, "TitleColor" } },
         title_pos = config.options.title_pos,
-        relative = 'editor',
-        row = row_pos - config.options.window_row,
-        col = col_pos - config.options.window_col,
+        relative = relative,
+        row = row,
+        col = -config.options.window_col,
         width = width,
         height = height,
         style = "minimal",
         border = config.options.border,
         focusable = true,
     })
-end
-
--- Function for keyboard-driven rendering (no delays, no mouse checks)
-function M.render_keyboard_mode()
-    M.load_diagnostics()
-    print(os.clock())
-
-    if config.options.show_lsp_info then
-        M.load_lsp_info(function()
-            if #M.diagnostic_messages == 0 and #M.lsp_info == 0 then
-                return
-            end
-            M.create_eagle_win()
-        end)
-    else
-        if #M.diagnostic_messages == 0 then
-            return
-        end
-        M.create_eagle_win()
-    end
 end
 
 return M
