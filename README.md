@@ -67,15 +67,15 @@ You can find the description of all the options in [config.lua](./lua/eagle/conf
 ```
 
 > [!IMPORTANT]\
-> The `keyboard_mode` config option is disabled by default. If you keep it
-> disabled, make sure `vim.o.mousemoveevent` is enabled.
+> By default, `keyboard_mode` is disabled and `mouse_mode` is enabled, but they can both be enabled at the same time.
+
+If you keep `mouse_mode` enabled, make sure `vim.o.mousemoveevent` is also enabled:
 ```lua
 vim.o.mousemoveevent = true
 ```
-
-If you otherwise enable `keyboard_mode`, make sure you set a **custom keymap** to be able to use the plugin:
+If you enable `keyboard_mode`, make sure you set a **custom keymap** to be able to use the plugin using the keyboard:
 ```lua
-vim.keymap.set('n', '<leader>e', ':EagleWin<CR>', { noremap = true, silent = true })
+vim.keymap.set('n', '<Tab>', ':EagleWin<CR>', { noremap = true, silent = true })
 ```
 
 > [!NOTE]\
