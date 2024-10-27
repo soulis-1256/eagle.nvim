@@ -3,8 +3,8 @@
 ***To soar like an eagle is to rise above all obstacles.***
 
 ## Features in progress
-- [ ] Added keymap support for the eagle window
-- [ ] Rework the code to support new features regarding keyboard workflow
+- [x] Added keymap support for the eagle window
+- [x] Rework the code to support new features regarding keyboard workflow
 - [ ] Rework the markdown formatting to be the same as `vim.lsp.buf.hover`
 
 ---
@@ -21,25 +21,29 @@ Enhance your Neovim experience by utilizing the following features:
 As you can see, the plugin's window is displaying all the information related to each position.
 
 ### Installation
-Using [Lazy](https://github.com/folke/lazy.nvim):
+With [Lazy](https://github.com/folke/lazy.nvim):
 ```lua
 {
-    "soulis-1256/eagle.nvim"
+    "soulis-1256/eagle.nvim",
+    opts = {
+      --override the default values found in config.lua
+    }
 },
 ```
-> [!IMPORTANT]\
-> Until I test it and add it here, don't try setting additional Lazy properties (like main, config, opts) as an alternative way to setup the plugin.
 
-### Setup
+Alternative setup (without Lazy's `opts` property), in case you encounter any issues:
+```lua
+{
+    "soulis-1256/eagle.nvim",
+}
+```
+
 ```lua
 require("eagle").setup({
--- override the default values found in config.lua
+--override the default values found in config.lua
 })
-
--- the config option <keyboard_mode> is disabled by default.
--- if you keep it disabled, make sure mousemoveevent is enabled
-vim.o.mousemoveevent = true
 ```
+
 You can find the description of all the options in [config.lua](./lua/eagle/config.lua). Here is a concise list:
 
 ```lua
@@ -61,8 +65,20 @@ You can find the description of all the options in [config.lua](./lua/eagle/conf
   border_color = "#8AAAE5",
 ```
 
+> [!IMPORTANT]\
+> The `keyboard_mode` config option is disabled by default. If you keep it
+> disabled, make sure `vim.o.mousemoveevent` is enabled.
+```lua
+vim.o.mousemoveevent = true
+```
+
+If you otherwise enable `keyboard_mode`, make sure you set a **custom keymap** to be able to use the plugin:
+```lua
+vim.keymap.set('n', '<leader>e', ':EagleWin<CR>', { noremap = true, silent = true })
+```
+
 > [!NOTE]\
-> The plugin is confirmed to work on build version 0.10.2 (api level 12)
+> The plugin is confirmed to work on build version `0.10.2` (`api level 12`)
 
 ### Support
 You can support me by donating through [PayPal](https://www.paypal.com/paypalme/soulis1256) and by providing your feedback. You can message me on [Discord](https://discord.com/users/319490489411829761).
