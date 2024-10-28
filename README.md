@@ -26,9 +26,7 @@ With [Lazy](https://github.com/folke/lazy.nvim):
 
 Alternative setup (without Lazy's `opts` property), in case you encounter any issues:
 ```lua
-{
-    "soulis-1256/eagle.nvim",
-}
+{ "soulis-1256/eagle.nvim" },
 ```
 
 ```lua
@@ -51,7 +49,7 @@ You can find the description of all the options in [config.lua](./lua/eagle/conf
   max_height_factor = 2.5,
   render_delay = 500,
   detect_idle_timer = 50,
-  window_row = 0,
+  window_row = 1,
   window_col = 5,
   border = "single",
   title = "",
