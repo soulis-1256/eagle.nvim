@@ -1,6 +1,16 @@
 local M = {}
 
 local defaults = {
+  -- the order of diagnostics (D) and lsp info (L)
+  -- the order can vary based on if the window is rendered on the
+  -- top half or bottom half of the screen (based on the mouse/cursor position in the view)
+  -- there are 4 options (left of the slash is the top render, right of the slash is the bottom render):
+  -- 1. DL/DL (the default, diagnostics have priority)
+  -- 2. DL/LD (lsp info is always the closest to the mouse/cursor)
+  -- 3. LD/LD (lsp info have priority)
+  -- 4. LD/DL (diagnostics is always the closest to the mouse/cursor)
+  order = 1,
+
   --see https://neovim.io/doc/user/options.html for both of these options
   --redundant when <improved_markdown> is disabled
   concealcursor = "nc",
