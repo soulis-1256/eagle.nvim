@@ -329,7 +329,7 @@ function M.create_eagle_win(keyboard_event)
         end
     end
 
-    -- Determine position mouse/cursor position
+    -- Set row position based on mouse/cursor
     local row
     local relative
     local focusable
