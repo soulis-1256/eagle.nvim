@@ -262,65 +262,135 @@ end
 --useful for hybrid scenario (keyboard + mouse enabled at the same time)
 function M.create_eagle_win(keyboard_event)
     local messages = {}
+    local has_diagnostics = #M.diagnostic_messages > 0
+    local has_lsp_info = config.options.show_lsp_info and #M.lsp_info > 0
 
-    if #M.diagnostic_messages > 0 then
-        table.insert(messages, "# Diagnostics")
-        table.insert(messages, "")
-    end
+    local function add_diagnostics()
+        if has_diagnostics then
+            table.insert(messages, "# Diagnostics")
+            table.insert(messages, "")
+        else
+            return
+        end
 
-    for i, diagnostic_message in ipairs(M.diagnostic_messages) do
-        local message_parts = vim.split(diagnostic_message.message, "\n", { trimempty = false })
-        for _, part in ipairs(message_parts) do
-            if #M.diagnostic_messages > 1 then
-                table.insert(messages, i .. ". " .. part)
-            else
-                table.insert(messages, part)
+        for i, diagnostic_message in ipairs(M.diagnostic_messages) do
+            local message_parts = vim.split(diagnostic_message.message, "\n", { trimempty = false })
+            for _, part in ipairs(message_parts) do
+                if #M.diagnostic_messages > 1 then
+                    table.insert(messages, i .. ". " .. part)
+                else
+                    table.insert(messages, part)
+                end
+            end
+
+            local severity = diagnostic_message.severity
+
+            if severity == 1 then
+                severity = "Error"
+            elseif severity == 2 then
+                severity = "Warning"
+            elseif severity == 3 then
+                severity = "Info"
+            elseif severity == 4 then
+                severity = "Hint"
+            end
+
+            table.insert(messages, "severity: " .. severity)
+            table.insert(messages, "source: " .. diagnostic_message.source)
+
+            -- some diagnostics may not fill the code field
+            if diagnostic_message.code then
+                table.insert(messages, "code: " .. diagnostic_message.code)
+            end
+
+            -- some diagnostics may not fill the hypertext reference field
+            local href = diagnostic_message.user_data and
+                diagnostic_message.user_data.lsp and diagnostic_message.user_data.lsp.codeDescription and
+                diagnostic_message.user_data.lsp.codeDescription.href
+
+            if href then
+                table.insert(messages, "href: " .. diagnostic_message.user_data.lsp.codeDescription.href)
+            end
+
+            -- newline
+            if i < #M.diagnostic_messages then
+                table.insert(messages, "")
             end
         end
+    end
 
-        local severity = diagnostic_message.severity
-
-        if severity == 1 then
-            severity = "Error"
-        elseif severity == 2 then
-            severity = "Warning"
-        elseif severity == 3 then
-            severity = "Info"
-        elseif severity == 4 then
-            severity = "Hint"
-        end
-
-        table.insert(messages, "severity: " .. severity)
-        table.insert(messages, "source: " .. diagnostic_message.source)
-
-        -- some diagnostics may not fill the code field
-        if diagnostic_message.code then
-            table.insert(messages, "code: " .. diagnostic_message.code)
-        end
-
-        -- some diagnostics may not fill the hypertext reference field
-        local href = diagnostic_message.user_data and
-            diagnostic_message.user_data.lsp and diagnostic_message.user_data.lsp.codeDescription and
-            diagnostic_message.user_data.lsp.codeDescription.href
-
-        if href then
-            table.insert(messages, "href: " .. diagnostic_message.user_data.lsp.codeDescription.href)
-        end
-
-        -- newline
-        if i < #M.diagnostic_messages then
+    local function add_lsp_info()
+        if has_lsp_info then
+            table.insert(messages, "# LSP Info")
             table.insert(messages, "")
+            for _, md_line in ipairs(M.lsp_info) do
+                table.insert(messages, md_line)
+            end
         end
     end
 
-    if config.options.show_lsp_info and #M.lsp_info > 0 then
-        if #M.diagnostic_messages > 0 then
+    -- Set row position based on mouse/cursor
+    local row
+    local relative
+    local focusable
+    if keyboard_event then
+        row = vim.fn.winline()
+        relative = 'cursor'
+        focusable = false
+    else
+        row = vim.fn.getmousepos().screenrow
+        relative = 'mouse'
+        focusable = true
+    end
+
+    -- Determine if the window should be rendered above or below the mouse/cursor
+    local render_above
+    if row > math.floor(vim.o.lines / 2) then
+        render_above = true
+    else
+        render_above = false
+    end
+
+    -- Adjust the order and insert '---' appropriately
+    if config.options.order == 1 then
+        add_diagnostics()
+        if has_diagnostics and has_lsp_info then
             table.insert(messages, "---")
         end
-        table.insert(messages, "# LSP Info")
-        table.insert(messages, "")
-        for _, md_line in ipairs(M.lsp_info) do
-            table.insert(messages, md_line)
+        add_lsp_info()
+    elseif config.options.order == 2 then
+        if render_above then
+            add_diagnostics()
+            if has_diagnostics and has_lsp_info then
+                table.insert(messages, "---")
+            end
+            add_lsp_info()
+        else
+            add_lsp_info()
+            if has_diagnostics and has_lsp_info then
+                table.insert(messages, "---")
+            end
+            add_diagnostics()
+        end
+    elseif config.options.order == 3 then
+        add_lsp_info()
+        if has_diagnostics and has_lsp_info then
+            table.insert(messages, "---")
+        end
+        add_diagnostics()
+    elseif config.options.order == 4 then
+        if render_above then
+            add_lsp_info()
+            if has_diagnostics and has_lsp_info then
+                table.insert(messages, "---")
+            end
+            add_diagnostics()
+        else
+            add_diagnostics()
+            if has_diagnostics and has_lsp_info then
+                table.insert(messages, "---")
+            end
+            add_lsp_info()
         end
     end
 
@@ -364,24 +434,8 @@ function M.create_eagle_win(keyboard_event)
     vim.api.nvim_set_hl(0, 'TitleColor', { fg = config.options.title_color })
     vim.api.nvim_set_hl(0, 'FloatBorder', { fg = config.options.border_color })
 
-    -- Determine position based on keyboard_mode setting
-    local row
-    local relative
-    local focusable
-    if keyboard_event then
-        row = vim.fn.winline()
-        relative = 'cursor'
-        --setting focusable to false it two fold
-        --we can track the property to know if it was keyboard-related
-        --and we can disable the mouse being able to focus on it
-        focusable = false
-    else
-        row = vim.fn.getmousepos().screenrow
-        relative = 'mouse'
-        focusable = true
-    end
-
-    if row > math.floor(vim.o.lines / 2) then
+    --this determines if the window should be rendered above or below the mouse/cursor
+    if render_above then
         row = config.options.window_row - height - 3
     else
         row = config.options.window_row
