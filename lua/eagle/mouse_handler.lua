@@ -11,10 +11,10 @@ local last_pos = nil
 
 local renderDelayTimer = vim.uv.new_timer()
 
---- call vim.fn.wincol() once in the beginning
+--call vim.fn.wincol() once in the beginning
 local index_lock = 0
 
---- store the value of the starting column of actual code (skip line number columns, icons etc)
+--store the value of the starting column of actual code (skip line number columns, icons etc)
 local code_index
 
 -- needed to block the creation of eagle_win when the mouse moves before the render delay timer is done
