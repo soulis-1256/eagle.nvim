@@ -1,6 +1,10 @@
 local M = {}
 
 local defaults = {
+  -- whether to show the markdown headers (# Diagnostics and # LSP Info)
+  -- this is also controlled by the command :EagleWinToggleHeaders
+  show_headers = true,
+
   -- the order of diagnostics (D) and lsp info (L)
   -- the order can vary based on if the window is rendered on the
   -- top half or bottom half of the screen (based on the mouse/cursor position in the view)

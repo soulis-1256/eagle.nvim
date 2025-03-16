@@ -112,4 +112,28 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd("DiagnosticChanged", { callback = util.sort_buf_diagnostics })
 end
 
+-- Toggle headers visibility and close any open eagle window
+function M.toggle_headers()
+  -- Toggle the show_headers option
+  config.options.show_headers = not config.options.show_headers
+
+  -- If eagle window is open and valid, close it
+  if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) then
+    vim.api.nvim_win_close(util.eagle_win, false)
+    -- Reset the win_lock for mouse handler
+    mouse_handler.win_lock = 0
+  end
+
+  -- Return the new state for convenience
+  return config.options.show_headers
+end
+
+-- Add a command for easy access
+vim.api.nvim_create_user_command('EagleWinToggleHeaders', function()
+  local state = M.toggle_headers()
+  if config.options.logging then
+    vim.notify("Eagle headers " .. (state and "enabled" or "disabled"))
+  end
+end, {})
+
 return M

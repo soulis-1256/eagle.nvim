@@ -267,8 +267,10 @@ function M.create_eagle_win(keyboard_event)
 
     local function add_diagnostics()
         if has_diagnostics then
-            table.insert(messages, "# Diagnostics")
-            table.insert(messages, "")
+            if config.options.show_headers then
+                table.insert(messages, "# Diagnostics")
+                table.insert(messages, "")
+            end
         else
             return
         end
@@ -321,8 +323,10 @@ function M.create_eagle_win(keyboard_event)
 
     local function add_lsp_info()
         if has_lsp_info then
-            table.insert(messages, "# LSP Info")
-            table.insert(messages, "")
+            if config.options.show_headers then
+                table.insert(messages, "# LSP Info")
+                table.insert(messages, "")
+            end
             for _, md_line in ipairs(M.lsp_info) do
                 table.insert(messages, md_line)
             end
