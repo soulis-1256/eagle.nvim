@@ -84,6 +84,240 @@ local function format_lines(max_width)
     end
 end
 
+function M.debug_lsp_clients(opts)
+    opts = opts or {}
+    local output_to_buffer = opts.buffer or false
+    local detailed = opts.detailed or false
+
+    local clients = vim.lsp.get_clients()
+    local output = {}
+
+    -- Helper function to handle both buffer and print output
+    local function add(str)
+        if output_to_buffer then
+            table.insert(output, str)
+        else
+            print(str)
+        end
+    end
+
+    if #clients == 0 then
+        add("No LSP clients found")
+        if output_to_buffer then
+            return output
+        else
+            return
+        end
+    end
+
+    add("\n---- LSP Client Debug Information ----")
+    add("Total clients: " .. #clients)
+
+    for i, client in ipairs(clients) do
+        add("\n" .. string.rep("=", 50))
+        add("Client " .. i .. ": " .. (client.name or "unnamed"))
+        add(string.rep("=", 50))
+
+        -- Basic information
+        add("\n## Basic Information")
+        add("• Name: " .. (client.name or "unnamed"))
+        add("• ID: " .. client.id)
+        add("• Status: " .. (client.is_stopped and client.is_stopped() and "Stopped" or "Running"))
+
+        -- Root directory
+        if client.config and client.config.root_dir then
+            add("• Root directory: " .. tostring(client.config.root_dir))
+        end
+
+        -- Filetypes
+        if client.config and client.config.filetypes then
+            add("• Supported filetypes: " .. vim.inspect(client.config.filetypes))
+        else
+            add("• Supported filetypes: none specified")
+        end
+
+        -- Attached buffers
+        local attached_buffers = {}
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.lsp.buf_is_attached(buf, client.id) then
+                local name = vim.api.nvim_buf_get_name(buf)
+                name = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
+                local ft = vim.bo[buf].filetype
+                table.insert(attached_buffers, { id = buf, name = name, ft = ft })
+            end
+        end
+
+        add("\n## Attached Buffers (" .. #attached_buffers .. ")")
+        if #attached_buffers > 0 then
+            for _, buf in ipairs(attached_buffers) do
+                add(string.format("• Buffer %d: %s (%s)", buf.id, buf.name, buf.ft))
+            end
+        else
+            add("• None")
+        end
+
+        -- List supported methods
+        add("\n## Supported Methods")
+        local common_methods = {
+            "textDocument/hover",
+            "textDocument/signatureHelp",
+            "textDocument/definition",
+            "textDocument/implementation",
+            "textDocument/references",
+            "textDocument/documentSymbol",
+            "textDocument/codeAction",
+            "textDocument/codeLens",
+            "textDocument/formatting",
+            "textDocument/rangeFormatting",
+            "textDocument/rename",
+            "textDocument/completion",
+            "textDocument/declaration",
+            "textDocument/typeDefinition",
+            "textDocument/publishDiagnostics",
+            "textDocument/semanticTokens/full",
+            "workspace/symbol",
+        }
+
+        for _, method in ipairs(common_methods) do
+            add("• " .. method .. ": " .. tostring(client.supports_method(method)))
+        end
+
+        -- Server capabilities (detailed info)
+        if client.server_capabilities then
+            add("\n## Capabilities Details")
+
+            -- Completion
+            if client.server_capabilities.completionProvider then
+                add("• Completion Provider:")
+                if client.server_capabilities.completionProvider.triggerCharacters then
+                    add("  - Trigger Characters: " ..
+                    vim.inspect(client.server_capabilities.completionProvider.triggerCharacters))
+                end
+                if client.server_capabilities.completionProvider.resolveProvider then
+                    add("  - Resolve Provider: true")
+                end
+            end
+
+            -- Hover
+            if type(client.server_capabilities.hoverProvider) == "table" then
+                add("• Hover Provider Details: " .. vim.inspect(client.server_capabilities.hoverProvider))
+            end
+
+            -- Signature Help
+            if client.server_capabilities.signatureHelpProvider then
+                add("• Signature Help Provider:")
+                if client.server_capabilities.signatureHelpProvider.triggerCharacters then
+                    add("  - Trigger Characters: " ..
+                    vim.inspect(client.server_capabilities.signatureHelpProvider.triggerCharacters))
+                end
+            end
+
+            -- Code Actions
+            if type(client.server_capabilities.codeActionProvider) == "table" then
+                add("• Code Action Provider:")
+                if client.server_capabilities.codeActionProvider.codeActionKinds then
+                    add("  - Action Kinds: " ..
+                    vim.inspect(client.server_capabilities.codeActionProvider.codeActionKinds))
+                end
+            end
+
+            -- Semantic Tokens
+            if client.server_capabilities.semanticTokensProvider then
+                add("• Semantic Tokens Provider:")
+                if client.server_capabilities.semanticTokensProvider.legend then
+                    add("  - Token Types: " .. #client.server_capabilities.semanticTokensProvider.legend.tokenTypes)
+                    add("  - Token Modifiers: " ..
+                    #client.server_capabilities.semanticTokensProvider.legend.tokenModifiers)
+                end
+                if detailed then
+                    add("  - Token Types List: " ..
+                    vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenTypes))
+                    add("  - Token Modifiers List: " ..
+                    vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenModifiers))
+                end
+            end
+
+            -- Workspace
+            if client.server_capabilities.workspace then
+                add("\n• Workspace Capabilities:")
+
+                -- Workspace folders
+                if client.server_capabilities.workspace.workspaceFolders then
+                    add("  - Workspace Folders: Supported")
+                end
+
+                -- File operations
+                if client.server_capabilities.workspace.fileOperations then
+                    add("  - File Operations: Supported")
+                end
+            end
+
+            -- Document Sync details
+            if client.server_capabilities.textDocumentSync then
+                local sync_kind = type(client.server_capabilities.textDocumentSync) == "table"
+                    and client.server_capabilities.textDocumentSync.change
+                    or client.server_capabilities.textDocumentSync
+
+                local sync_kind_text = {
+                    [0] = "None",
+                    [1] = "Full",
+                    [2] = "Incremental"
+                }
+
+                add("• Text Document Sync: " .. (sync_kind_text[sync_kind] or "Unknown"))
+
+                if type(client.server_capabilities.textDocumentSync) == "table" then
+                    local sync = client.server_capabilities.textDocumentSync
+                    if sync.willSave then add("  - Will Save: true") end
+                    if sync.willSaveWaitUntil then add("  - Will Save Wait Until: true") end
+                    if sync.save then add("  - Did Save: true") end
+                end
+            end
+        end
+
+        -- Custom handlers
+        local handlers = {}
+        if client.handlers and detailed then
+            add("\n## Custom Handlers")
+            for handler_name, _ in pairs(client.handlers) do
+                table.insert(handlers, handler_name)
+            end
+            table.sort(handlers)
+            for _, handler_name in ipairs(handlers) do
+                add("• " .. handler_name)
+            end
+        end
+
+        -- Server settings
+        if client.config and client.config.settings and detailed then
+            add("\n## Server Settings")
+            add(vim.inspect(client.config.settings))
+        end
+
+        -- Initialization options
+        if client.config and client.config.init_options and detailed then
+            add("\n## Initialization Options")
+            add(vim.inspect(client.config.init_options))
+        end
+    end
+
+    add("\n" .. string.rep("=", 50))
+
+    -- Output to buffer if requested
+    if output_to_buffer then
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, output)
+        vim.bo[buf].filetype = 'markdown'
+        vim.bo[buf].modifiable = false
+        vim.bo[buf].bufhidden = 'wipe'
+
+        -- Open buffer in split window
+        vim.cmd('split LSP-Debug')
+        vim.api.nvim_win_set_buf(0, buf)
+        return buf
+    end
+end
+
 local function check_lsp_support()
     -- get the filetype of the current buffer
     local filetype = vim.bo.filetype
@@ -118,7 +352,14 @@ function M.load_lsp_info(keyboard_event, callback)
     --As of right now, WinEnter is a partial solution,
     --but it's not enough (for buffers etc).
     --BufEnter doesn't seem to work properly
-    if not check_lsp_support() then
+    local has_lsp = check_lsp_support()
+
+    if not has_lsp then
+        if config.options.logging then
+            print("No LSP support detected, skipping LSP info loading")
+        end
+        M.lsp_info = {}
+        callback()
         return
     end
 
