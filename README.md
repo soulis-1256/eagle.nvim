@@ -38,6 +38,7 @@ require("eagle").setup({
 You can find the description of all the options in [config.lua](./lua/eagle/config.lua). Here is a concise list:
 
 ```lua
+  show_headers = true,
   order = 1,
   improved_markdown = true,
   mouse_mode = true,
