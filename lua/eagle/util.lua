@@ -366,8 +366,7 @@ function M.load_lsp_info(keyboard_event, callback)
     M.lsp_info = {}
 
     local pos = getpos(keyboard_event)
-    local current_buffer = vim.api.nvim_get_current_buf()
-    local clients = vim.lsp.get_clients(current_buffer)
+    local clients = vim.lsp.get_clients()
     local window = vim.api.nvim_get_current_win()
     local position_params = vim.lsp.util.make_position_params(window, clients[1].offset_encoding)
 
