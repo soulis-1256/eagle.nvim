@@ -191,7 +191,7 @@ function M.debug_lsp_clients(opts)
                 add("• Completion Provider:")
                 if client.server_capabilities.completionProvider.triggerCharacters then
                     add("  - Trigger Characters: " ..
-                    vim.inspect(client.server_capabilities.completionProvider.triggerCharacters))
+                        vim.inspect(client.server_capabilities.completionProvider.triggerCharacters))
                 end
                 if client.server_capabilities.completionProvider.resolveProvider then
                     add("  - Resolve Provider: true")
@@ -208,7 +208,7 @@ function M.debug_lsp_clients(opts)
                 add("• Signature Help Provider:")
                 if client.server_capabilities.signatureHelpProvider.triggerCharacters then
                     add("  - Trigger Characters: " ..
-                    vim.inspect(client.server_capabilities.signatureHelpProvider.triggerCharacters))
+                        vim.inspect(client.server_capabilities.signatureHelpProvider.triggerCharacters))
                 end
             end
 
@@ -217,7 +217,7 @@ function M.debug_lsp_clients(opts)
                 add("• Code Action Provider:")
                 if client.server_capabilities.codeActionProvider.codeActionKinds then
                     add("  - Action Kinds: " ..
-                    vim.inspect(client.server_capabilities.codeActionProvider.codeActionKinds))
+                        vim.inspect(client.server_capabilities.codeActionProvider.codeActionKinds))
                 end
             end
 
@@ -227,13 +227,13 @@ function M.debug_lsp_clients(opts)
                 if client.server_capabilities.semanticTokensProvider.legend then
                     add("  - Token Types: " .. #client.server_capabilities.semanticTokensProvider.legend.tokenTypes)
                     add("  - Token Modifiers: " ..
-                    #client.server_capabilities.semanticTokensProvider.legend.tokenModifiers)
+                        #client.server_capabilities.semanticTokensProvider.legend.tokenModifiers)
                 end
                 if detailed then
                     add("  - Token Types List: " ..
-                    vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenTypes))
+                        vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenTypes))
                     add("  - Token Modifiers List: " ..
-                    vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenModifiers))
+                        vim.inspect(client.server_capabilities.semanticTokensProvider.legend.tokenModifiers))
                 end
             end
 
@@ -367,8 +367,8 @@ function M.load_lsp_info(keyboard_event, callback)
 
     local pos = getpos(keyboard_event)
     local clients = vim.lsp.get_clients()
-    local window = vim.api.nvim_get_current_win()
-    local position_params = vim.lsp.util.make_position_params(window, clients[1].offset_encoding)
+    local win = vim.api.nvim_get_current_win()
+    local position_params = vim.lsp.util.make_position_params(win, clients[1].offset_encoding or 'utf-16')
 
     position_params.position.line = pos.row
     position_params.position.character = pos.col
