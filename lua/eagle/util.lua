@@ -5,6 +5,17 @@ local M = {}
 -- keep track of eagle window id and eagle buffer id
 local eagle_buf = nil
 
+-- Create a namespace for our highlights to persist
+local eagle_ns = vim.api.nvim_create_namespace('eagle_highlights')
+
+-- Store section positions for highlight reapplication
+local section_data = {
+    diagnostic_header_lines = {},
+    diagnostic_content_lines = {},
+    lsp_header_lines = {},
+    lsp_content_lines = {}
+}
+
 -- tables that hold the diagnostics and lsp info
 --M.diagnostic_messages = {}
 --M.lsp_info = {}
@@ -39,19 +50,22 @@ local function format_lines(max_width)
         return
     end
 
+    local in_code_block = false
     -- Iterate over the lines in the buffer
     local i = 0
     while i < vim.api.nvim_buf_line_count(eagle_buf) do
         -- Get the current line
         local line = vim.api.nvim_buf_get_lines(eagle_buf, i, i + 1, false)[1]
 
-        -- If the line is too long
-        if vim.fn.strdisplaywidth(line) > max_width then
+        if string.match(line, "^```") then
+            in_code_block = not in_code_block
+        elseif not in_code_block and vim.fn.strdisplaywidth(line) > max_width then
             -- Check if the line is a markdown separator (contains only "─")
             if string.match(line, "^[─]+$") then
                 -- If it's a markdown separator, truncate the line at max_width
                 -- Notice we multiply max_width by 3, because this character takes up three bytes
-                line = string.sub(line, 1, max_width * 3)
+                local truncated_line = string.sub(line, 1, max_width * 3)
+                vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { truncated_line })
             else
                 -- Find the last space character within the maximum line width
                 local space_index = max_width
@@ -69,15 +83,12 @@ local function format_lines(max_width)
                 local part2 = string.sub(line, space_index + 1)
 
                 -- Replace the current line with the part that fits
-                line = part1
+                vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { part1 })
 
                 -- Insert the remainder as a new line after the current line
                 vim.api.nvim_buf_set_lines(eagle_buf, i + 1, i + 1, false, { part2 })
             end
         end
-
-        -- Replace the current line with the modified version
-        vim.api.nvim_buf_set_lines(eagle_buf, i, i + 1, false, { line })
 
         -- Move to the next line
         i = i + 1
@@ -356,7 +367,7 @@ function M.load_lsp_info(keyboard_event, callback)
 
     if not has_lsp then
         if config.options.logging then
-            print("No LSP support detected, skipping LSP info loading")
+            print("[Eagle] No LSP support detected, skipping LSP info loading")
         end
         M.lsp_info = {}
         callback()
@@ -367,6 +378,12 @@ function M.load_lsp_info(keyboard_event, callback)
 
     local pos = getpos(keyboard_event)
     local clients = vim.lsp.get_clients()
+    
+    if config.options.logging then
+        print(string.format("[Eagle] load_lsp_info: pos=(%d, %d), clients=%d, keyboard=%s", 
+            pos.row, pos.col, #clients, tostring(keyboard_event)))
+    end
+    
     local win = vim.api.nvim_get_current_win()
     local position_params = vim.lsp.util.make_position_params(win, clients[1].offset_encoding or 'utf-16')
 
@@ -378,9 +395,56 @@ function M.load_lsp_info(keyboard_event, callback)
     -- asynchronous, so we need to use a callback function
     -- buf_request_sync contains vim.wait which is unwanted
     vim.lsp.buf_request_all(bufnr, "textDocument/hover", position_params, function(results)
+        local result_count = 0
+        local combined_lsp_info = {}
         for _, result in pairs(results) do
+            result_count = result_count + 1
             if result.result and result.result.contents then
-                M.lsp_info = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
+                local new_lines = vim.lsp.util.convert_input_to_markdown_lines(result.result.contents)
+                if new_lines and #new_lines > 0 then
+                    local has_content = false
+                    for _, line in ipairs(new_lines) do
+                        if line:match("%S") then
+                            has_content = true
+                            break
+                        end
+                    end
+
+                    if has_content then
+                        if #combined_lsp_info > 0 then
+                            table.insert(combined_lsp_info, "---")
+                        end
+                        vim.list_extend(combined_lsp_info, new_lines)
+                    end
+                end
+
+                if config.options.logging then
+                    print(string.format("[Eagle] Received LSP response, added %d lines.", #new_lines))
+                end
+            end
+        end
+        M.lsp_info = combined_lsp_info
+        
+        if config.options.logging and result_count == 0 then
+            print("[Eagle] No LSP results returned")
+        end
+
+        -- Filter out empty lines to detect if there's actual content
+        if M.lsp_info then
+            local has_content = false
+            for _, line in ipairs(M.lsp_info) do
+                if line and line:match("%S") then -- Check if line has non-whitespace
+                    has_content = true
+                    break
+                end
+            end
+            if not has_content then
+                if config.options.logging then
+                    print("[Eagle] LSP info filtered out (only whitespace)")
+                end
+                M.lsp_info = {}
+            elseif config.options.logging then
+                print(string.format("[Eagle] Final LSP info lines: %d", #M.lsp_info))
             end
         end
 
@@ -392,38 +456,76 @@ end
 --keyboard_event is the same as with M.create_eagle_win(keyboard_event)
 function M.load_diagnostics(keyboard_event)
     local pos = getpos(keyboard_event)
-    local diagnostics
+    local diagnostics = {}
     local prev_diagnostics = M.diagnostic_messages
     M.diagnostic_messages = {}
 
-    local pos_info = vim.inspect_pos(vim.api.nvim_get_current_buf(), pos.row, pos.col)
-    for _, extmark in ipairs(pos_info.extmarks) do
-        local extmark_str = vim.inspect(extmark)
-        if string.find(extmark_str, "Diagnostic") then
-            diagnostics = vim.diagnostic.get(0, { lnum = pos.row })
+    if config.options.logging then
+        print(string.format("[Eagle] load_diagnostics: pos=(%d, %d), keyboard=%s", 
+            pos.row, pos.col, tostring(keyboard_event)))
+    end
 
-            --binary search on the sorted sorted_diagnostics table
-            --needed for nested underlines (poor API)
-            if #diagnostics == 0 then
-                local outer_line
-                if M.sorted_diagnostics then
-                    local low, high = 1, #M.sorted_diagnostics
-                    while low <= high do
-                        local mid = math.floor((low + high) / 2)
-                        local diagnostic = M.sorted_diagnostics[mid]
-                        if diagnostic.lnum < pos.row then
-                            outer_line = diagnostic.lnum
-                            low = mid + 1
-                        else
-                            high = mid - 1
+    -- Try to get diagnostics at the current position
+    -- Use a more robust approach that works across Neovim versions
+    local bufnr = vim.api.nvim_get_current_buf()
+    
+    -- Get all diagnostics for the current line
+    local line_diagnostics = vim.diagnostic.get(bufnr, { lnum = pos.row })
+    
+    if config.options.logging then
+        print(string.format("[Eagle] Found %d diagnostics on line %d", #line_diagnostics, pos.row))
+    end
+    
+    -- If we found diagnostics, filter them by horizontal position
+    if line_diagnostics and #line_diagnostics > 0 then
+        diagnostics = line_diagnostics
+    else
+        -- Try using vim.inspect_pos for extmark-based detection (newer Neovim)
+        local success, pos_info = pcall(vim.inspect_pos, bufnr, pos.row, pos.col)
+        if success and pos_info and pos_info.extmarks then
+            if config.options.logging then
+                print(string.format("[Eagle] Checking %d extmarks", #pos_info.extmarks))
+            end
+            for _, extmark in ipairs(pos_info.extmarks) do
+                -- Check if this extmark is from the diagnostic namespace
+                local extmark_str = vim.inspect(extmark)
+                if string.find(extmark_str, "Diagnostic") or string.find(extmark_str, "diagnostic") then
+                    diagnostics = vim.diagnostic.get(bufnr, { lnum = pos.row })
+                    
+                    if config.options.logging then
+                        print(string.format("[Eagle] Found diagnostic extmark, diagnostics count: %d", #diagnostics))
+                    end
+                    
+                    -- If still no diagnostics, try binary search for nested diagnostics
+                    if #diagnostics == 0 and M.sorted_diagnostics then
+                        local outer_line
+                        local low, high = 1, #M.sorted_diagnostics
+                        while low <= high do
+                            local mid = math.floor((low + high) / 2)
+                            local diagnostic = M.sorted_diagnostics[mid]
+                            if diagnostic.lnum < pos.row then
+                                outer_line = diagnostic.lnum
+                                low = mid + 1
+                            else
+                                high = mid - 1
+                            end
+                        end
+                        if outer_line then
+                            diagnostics = vim.diagnostic.get(bufnr, { lnum = outer_line })
+                            if config.options.logging then
+                                print(string.format("[Eagle] Binary search found outer_line: %d", outer_line))
+                            end
                         end
                     end
+                    break
                 end
-                diagnostics = vim.diagnostic.get(0, { lnum = outer_line })
             end
+        elseif not success and config.options.logging then
+            print("[Eagle] vim.inspect_pos failed: " .. tostring(pos_info))
         end
     end
 
+    -- Filter diagnostics to only those that contain the cursor position
     if diagnostics and #diagnostics > 0 then
         for _, diagnostic in ipairs(diagnostics) do
             local cursor_in_v_bounds, cursor_in_h_bounds
@@ -454,6 +556,10 @@ function M.load_diagnostics(keyboard_event)
         end
     end
 
+    if config.options.logging then
+        print(string.format("[Eagle] Final diagnostic count: %d", #M.diagnostic_messages))
+    end
+
     if not vim.deep_equal(M.diagnostic_messages, prev_diagnostics) then
         return false
     end
@@ -463,7 +569,7 @@ end
 
 local function stylize_markdown_buffer(bufnr, contents, opts)
     opts = opts or {}
-    contents = vim.split(table.concat(contents, '\n'), '\n', { trimempty = true })
+    contents = vim.split(table.concat(contents, '\n'), '\n', { trimempty = false })
 
     -- Set default width if not provided
     local width = opts.width or vim.api.nvim_win_get_width(0)
@@ -477,7 +583,7 @@ local function stylize_markdown_buffer(bufnr, contents, opts)
             -- Add the line to track where code blocks start and end
             table.insert(normalized, line)
         elseif line == "---" then
-            -- Render a full-width horizontal line for `---`
+            -- Render a horizontal line for `---`, respecting the width constraint
             table.insert(normalized, string.rep("─", width))
         else
             if in_code_block then
@@ -485,8 +591,14 @@ local function stylize_markdown_buffer(bufnr, contents, opts)
                 table.insert(normalized, line)
             else
                 -- Wrap non-code lines at the specified width
-                local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
-                vim.list_extend(normalized, wrapped)
+                -- Check if the line contains a code fence marker that might get split
+                if line:find("```") then
+                    -- Don't wrap lines containing ``` to preserve markdown syntax
+                    table.insert(normalized, line)
+                else
+                    local wrapped = vim.fn.split(line, [[\%]] .. width .. [[v]])
+                    vim.list_extend(normalized, wrapped)
+                end
             end
         end
     end
@@ -495,9 +607,138 @@ local function stylize_markdown_buffer(bufnr, contents, opts)
     vim.bo[bufnr].filetype = 'markdown'
     vim.treesitter.start(bufnr)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, normalized)
+end
 
-    vim.wo[0].conceallevel = config.options.conceallevel
-    vim.wo[0].concealcursor = config.options.concealcursor
+-- Sanitize color value to ensure it's valid for nvim_set_hl
+-- Removes alpha channel if present (e.g., #RRGGBBAA -> #RRGGBB)
+local function sanitize_color(color)
+    if not color or color == "" then
+        return color
+    end
+    
+    -- If color starts with # and has 8 hex chars (includes alpha), truncate to 6
+    if color:match("^#%x%x%x%x%x%x%x%x$") then
+        return color:sub(1, 7) -- Keep # and first 6 hex chars
+    end
+    
+    return color
+end
+
+-- Apply custom highlighting to differentiate diagnostic and LSP info sections
+-- This uses extmarks which are more robust and persist through buffer changes like scrolling
+local function apply_section_highlights(bufnr)
+    if config.options.logging then
+        print("[Eagle] apply_section_highlights called for buffer " .. bufnr)
+    end
+    
+    -- Sanitize colors before use
+    local diag_header_color = sanitize_color(config.options.diagnostic_header_color)
+    local diag_content_color = sanitize_color(config.options.diagnostic_content_color)
+    local lsp_header_color = sanitize_color(config.options.lsp_info_header_color)
+    local lsp_content_color = sanitize_color(config.options.lsp_info_content_color)
+    
+    -- Define highlight groups if colors are configured
+    if diag_header_color and diag_header_color ~= "" then
+        vim.api.nvim_set_hl(0, 'EagleDiagnosticHeader', { fg = diag_header_color, bold = true })
+    end
+    
+    if diag_content_color and diag_content_color ~= "" then
+        vim.api.nvim_set_hl(0, 'EagleDiagnosticContent', { fg = diag_content_color })
+    end
+    
+    if lsp_header_color and lsp_header_color ~= "" then
+        vim.api.nvim_set_hl(0, 'EagleLspInfoHeader', { fg = lsp_header_color, bold = true })
+    end
+    
+    if lsp_content_color and lsp_content_color ~= "" then
+        vim.api.nvim_set_hl(0, 'EagleLspInfoContent', { fg = lsp_content_color })
+    end
+    
+    -- Clear any existing highlights in our namespace
+    vim.api.nvim_buf_clear_namespace(bufnr, eagle_ns, 0, -1)
+    
+    -- Reset section data
+    section_data.diagnostic_header_lines = {}
+    section_data.diagnostic_content_lines = {}
+    section_data.lsp_header_lines = {}
+    section_data.lsp_content_lines = {}
+    
+    -- Get all lines from the buffer after stylization
+    local buffer_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    
+    if config.options.logging then
+        print(string.format("[Eagle] Buffer has %d lines", #buffer_lines))
+    end
+    
+    -- Scan buffer and identify sections by content
+    local in_diagnostic_section = false
+    local in_lsp_section = false
+    local diag_count = 0
+    local lsp_count = 0
+    
+    for line_idx = 0, #buffer_lines - 1 do
+        local line = buffer_lines[line_idx + 1]
+        
+        -- Detect section headers
+        if line:match("^#%s*Diagnostics%s*$") then
+            in_diagnostic_section = true
+            in_lsp_section = false
+            table.insert(section_data.diagnostic_header_lines, line_idx)
+            if diag_header_color ~= "" then
+                vim.api.nvim_buf_set_extmark(bufnr, eagle_ns, line_idx, 0, {
+                    end_line = line_idx + 1,
+                    hl_group = 'EagleDiagnosticHeader',
+                    hl_eol = true,
+                    priority = 1000,  -- High priority to override treesitter
+                })
+                diag_count = diag_count + 1
+            end
+        elseif line:match("^#%s*LSP%s+Info%s*$") then
+            in_lsp_section = true
+            in_diagnostic_section = false
+            table.insert(section_data.lsp_header_lines, line_idx)
+            if lsp_header_color ~= "" then
+                vim.api.nvim_buf_set_extmark(bufnr, eagle_ns, line_idx, 0, {
+                    end_line = line_idx + 1,
+                    hl_group = 'EagleLspInfoHeader',
+                    hl_eol = true,
+                    priority = 1000,  -- High priority to override treesitter
+                })
+                lsp_count = lsp_count + 1
+            end
+        elseif line:match("^─+$") then
+            -- Separator line - don't change section state
+            -- The next header will properly switch sections
+        else
+            -- Content lines - apply appropriate highlighting
+            if in_diagnostic_section and diag_content_color ~= "" and #line > 0 then
+                table.insert(section_data.diagnostic_content_lines, line_idx)
+                vim.api.nvim_buf_set_extmark(bufnr, eagle_ns, line_idx, 0, {
+                    end_line = line_idx + 1,
+                    hl_group = 'EagleDiagnosticContent',
+                    hl_eol = true,
+                    priority = 1000,  -- High priority to override treesitter
+                })
+                diag_count = diag_count + 1
+            elseif in_lsp_section and lsp_content_color ~= "" and #line > 0 then
+                table.insert(section_data.lsp_content_lines, line_idx)
+                vim.api.nvim_buf_set_extmark(bufnr, eagle_ns, line_idx, 0, {
+                    end_line = line_idx + 1,
+                    hl_group = 'EagleLspInfoContent',
+                    hl_eol = true,
+                    priority = 1000,  -- High priority to override treesitter
+                })
+                lsp_count = lsp_count + 1
+            end
+        end
+    end
+    
+    if config.options.logging then
+        print(string.format("[Eagle] Applied highlights: diag=%d, lsp=%d", diag_count, lsp_count))
+        print(string.format("[Eagle] Stored sections: diag_header=%d, diag_content=%d, lsp_header=%d, lsp_content=%d",
+            #section_data.diagnostic_header_lines, #section_data.diagnostic_content_lines,
+            #section_data.lsp_header_lines, #section_data.lsp_content_lines))
+    end
 end
 
 
@@ -508,14 +749,20 @@ function M.create_eagle_win(keyboard_event)
     local has_diagnostics = #M.diagnostic_messages > 0
     local has_lsp_info = config.options.show_lsp_info and #M.lsp_info > 0
 
+    if config.options.logging then
+        print(string.format("[Eagle] create_eagle_win: diagnostics=%d, lsp_info=%d, keyboard=%s", 
+            #M.diagnostic_messages, #M.lsp_info, tostring(keyboard_event)))
+    end
+
     local function add_diagnostics()
-        if has_diagnostics then
-            if config.options.show_headers then
-                table.insert(messages, "# Diagnostics")
-                table.insert(messages, "")
-            end
-        else
+        if not has_diagnostics then
             return
+        end
+        
+        -- Add header if enabled
+        if config.options.show_headers then
+            table.insert(messages, "# Diagnostics")
+            table.insert(messages, "")
         end
 
         for i, diagnostic_message in ipairs(M.diagnostic_messages) do
@@ -565,14 +812,18 @@ function M.create_eagle_win(keyboard_event)
     end
 
     local function add_lsp_info()
-        if has_lsp_info then
-            if config.options.show_headers then
-                table.insert(messages, "# LSP Info")
-                table.insert(messages, "")
-            end
-            for _, md_line in ipairs(M.lsp_info) do
-                table.insert(messages, md_line)
-            end
+        if not has_lsp_info or #M.lsp_info == 0 then
+            return
+        end
+        
+        -- Add header if enabled
+        if config.options.show_headers then
+            table.insert(messages, "# LSP Info")
+            table.insert(messages, "")
+        end
+        
+        for _, md_line in ipairs(M.lsp_info) do
+            table.insert(messages, md_line)
         end
     end
 
@@ -598,46 +849,54 @@ function M.create_eagle_win(keyboard_event)
         render_above = false
     end
 
+    -- Helper function to add separator if both sections were added
+    local function add_separator_if_needed(first_section_size, second_section_size)
+        if first_section_size > 0 and second_section_size > 0 then
+            -- Insert separator at the position between the two sections
+            table.insert(messages, first_section_size + 1, "---")
+        end
+    end
+
     -- Adjust the order and insert '---' appropriately
     if config.options.order == 1 then
+        local before_diag = #messages
         add_diagnostics()
-        if has_diagnostics and has_lsp_info then
-            table.insert(messages, "---")
-        end
+        local after_diag = #messages
         add_lsp_info()
+        add_separator_if_needed(after_diag - before_diag, #messages - after_diag)
     elseif config.options.order == 2 then
         if render_above then
+            local before_diag = #messages
             add_diagnostics()
-            if has_diagnostics and has_lsp_info then
-                table.insert(messages, "---")
-            end
+            local after_diag = #messages
             add_lsp_info()
+            add_separator_if_needed(after_diag - before_diag, #messages - after_diag)
         else
+            local before_lsp = #messages
             add_lsp_info()
-            if has_diagnostics and has_lsp_info then
-                table.insert(messages, "---")
-            end
+            local after_lsp = #messages
             add_diagnostics()
+            add_separator_if_needed(after_lsp - before_lsp, #messages - after_lsp)
         end
     elseif config.options.order == 3 then
+        local before_lsp = #messages
         add_lsp_info()
-        if has_diagnostics and has_lsp_info then
-            table.insert(messages, "---")
-        end
+        local after_lsp = #messages
         add_diagnostics()
+        add_separator_if_needed(after_lsp - before_lsp, #messages - after_lsp)
     elseif config.options.order == 4 then
         if render_above then
+            local before_lsp = #messages
             add_lsp_info()
-            if has_diagnostics and has_lsp_info then
-                table.insert(messages, "---")
-            end
+            local after_lsp = #messages
             add_diagnostics()
+            add_separator_if_needed(after_lsp - before_lsp, #messages - after_lsp)
         else
+            local before_diag = #messages
             add_diagnostics()
-            if has_diagnostics and has_lsp_info then
-                table.insert(messages, "---")
-            end
+            local after_diag = #messages
             add_lsp_info()
+            add_separator_if_needed(after_diag - before_diag, #messages - after_diag)
         end
     end
 
@@ -649,15 +908,31 @@ function M.create_eagle_win(keyboard_event)
 
     -- this "stylizes" the markdown messages (diagnostics + lsp info)
     -- and attaches them to the eagle_buf
+    local max_width = math.floor(vim.o.columns / config.options.max_width_factor)
     if config.options.improved_markdown then
-        stylize_markdown_buffer(eagle_buf, messages, {})
+        stylize_markdown_buffer(eagle_buf, messages, { width = max_width })
     else
         --old way, not recommended
         vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
     end
 
     -- format long lines of the buffer
-    format_lines(math.floor(vim.o.columns / config.options.max_width_factor))
+    format_lines(max_width)
+    
+    -- Apply custom section highlighting AFTER stylization and formatting
+    -- Uses extmarks to persist through scrolling
+    apply_section_highlights(eagle_buf)
+    
+    -- Reapply highlights after a short delay to ensure they override treesitter
+    -- Treesitter parsing is async, so we need to wait for it to complete
+    vim.defer_fn(function()
+        if eagle_buf and vim.api.nvim_buf_is_valid(eagle_buf) then
+            apply_section_highlights(eagle_buf)
+            if config.options.logging then
+                print("[Eagle] Reapplied highlights after treesitter settling")
+            end
+        end
+    end, 50)  -- 50ms delay should be enough for treesitter to parse
 
     vim.api.nvim_set_option_value("modifiable", false, { buf = eagle_buf })
     vim.api.nvim_set_option_value("readonly", true, { buf = eagle_buf })
@@ -700,6 +975,12 @@ function M.create_eagle_win(keyboard_event)
         border = config.options.border,
         focusable = focusable,
     })
+
+    -- Set conceal options for eagle window
+    if M.eagle_win and vim.api.nvim_win_is_valid(M.eagle_win) then
+        vim.api.nvim_win_set_option(M.eagle_win, "concealcursor", config.options.concealcursor)
+        vim.api.nvim_win_set_option(M.eagle_win, "conceallevel", config.options.conceallevel)
+    end
 end
 
 return M

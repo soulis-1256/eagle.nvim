@@ -11,12 +11,6 @@ local last_pos = nil
 
 local renderDelayTimer = vim.uv.new_timer()
 
---call vim.fn.wincol() once in the beginning
-local index_lock = 0
-
---store the value of the starting column of actual code (skip line number columns, icons etc)
-local code_index
-
 -- needed to block the creation of eagle_win when the mouse moves before the render delay timer is done
 local last_mouse_pos = nil
 
@@ -30,13 +24,26 @@ local function render_mouse_mode()
     renderDelayTimer:stop()
 
     last_mouse_pos = vim.fn.getmousepos()
+    
+    if config.options.logging then
+        print(string.format("[Eagle Mouse] render_mouse_mode: pos=(%d,%d), win_lock=%d", 
+            last_mouse_pos.line, last_mouse_pos.column, M.win_lock))
+    end
+    
     renderDelayTimer:start(config.options.render_delay, 0, vim.schedule_wrap(function()
+        if config.options.logging then
+            print("[Eagle Mouse] Timer fired, checking diagnostics...")
+        end
+        
         -- if the window is open, we need to check if there are new diagnostics on the same line
         -- this is done with the highest priority, once the mouse goes idle
         if util.load_diagnostics(false) then
             if M.win_lock == 0 then
                 M.win_lock = 1
             else
+                if config.options.logging then
+                    print("[Eagle Mouse] win_lock already set, returning")
+                end
                 return
             end
         else
@@ -91,20 +98,59 @@ end
 function M.is_mouse_on_code()
     local mouse_pos = vim.fn.getmousepos()
 
+    -- Guard against invalid positions
+    if mouse_pos.winid == 0 or mouse_pos.line < 1 then
+        if config.options.logging then
+            print("[Eagle Mouse] is_mouse_on_code: no valid window under cursor")
+        end
+        return false
+    end
+
     -- Get the line content at the specified line number (mouse_pos.line)
     local line_content = vim.fn.getline(mouse_pos.line)
 
-    -- this is probably a "hacky" way, but it should work reliably
-    if index_lock == 0 then
-        code_index = vim.fn.wincol()
-        index_lock = 1
+    if config.options.logging then
+        print(string.format("[Eagle Mouse] is_mouse_on_code: pos=(%d,%d), screencol=%d, column=%d, line_len=%d, line='%s'", 
+            mouse_pos.line, mouse_pos.column, mouse_pos.screencol, mouse_pos.column, #line_content, line_content))
     end
 
-    -- Check if the character under the mouse cursor is not:
-    -- a) Whitespace
-    -- b) After the last character of the current line
-    -- c) Before the first character of the current line
-    if ((mouse_pos.column ~= vim.fn.strdisplaywidth(line_content) + 1) and (line_content:sub(mouse_pos.column, mouse_pos.column):match("%S") ~= nil) and mouse_pos.screencol >= code_index) then
+    -- Check if mouse is on valid screen position
+    if mouse_pos.column == 0 then
+        if config.options.logging then
+            print("[Eagle Mouse] is_mouse_on_code: before code area (line numbers/signs)")
+        end
+        return false
+    end
+
+    -- Check if line is empty
+    if #line_content == 0 then
+        if config.options.logging then
+            print("[Eagle Mouse] is_mouse_on_code: empty line")
+        end
+        return false
+    end
+
+    -- Use the byte column reported by getmousepos()
+    local byte_col = mouse_pos.column
+    
+    -- Check if we're past the end of the line
+    if byte_col > #line_content then
+        if config.options.logging then
+            print(string.format("[Eagle Mouse] is_mouse_on_code: past end of line (byte_col=%d > line_len=%d)", byte_col, #line_content))
+        end
+        return false
+    end
+
+    -- Check if the character at this position is not whitespace
+    local char_at_pos = line_content:sub(byte_col, byte_col)
+    local is_on_code = char_at_pos:match("%S") ~= nil
+    
+    if config.options.logging then
+        print(string.format("[Eagle Mouse] is_mouse_on_code: byte_col=%d, char='%s', result=%s", 
+            byte_col, char_at_pos, tostring(is_on_code)))
+    end
+    
+    if is_on_code then
         last_pos = vim.fn.getmousepos()
         return true
     end
@@ -112,6 +158,10 @@ function M.is_mouse_on_code()
 end
 
 function M.process_mouse_pos()
+    if config.options.logging then
+        print(string.format("[Eagle Mouse] process_mouse_pos: mode=%s", vim.fn.mode()))
+    end
+    
     -- return if not in normal mode or if the mouse is not hovering over actual code
     if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
         renderDelayTimer:stop()

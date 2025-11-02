@@ -17,8 +17,9 @@ local defaults = {
 
   --see https://neovim.io/doc/user/options.html for both of these options
   --redundant when <improved_markdown> is disabled
-  concealcursor = "nc",
-  conceallevel = 3,
+  --it's recommended to not change these as it may cause some artifacts
+  concealcursor = "nv",
+  conceallevel = 1,
 
   --added an improved way to stylize markdown that is visually identical to vim.lsp.buf.hover()
   --disable if you encounter any issues
@@ -98,6 +99,16 @@ local defaults = {
 
   -- window border color
   border_color = "#8AAAE5",
+
+  -- Header colors (for "# Diagnostics" and "# LSP Info" titles)
+  -- format is #RRGGBB
+  diagnostic_header_color = "",
+  lsp_info_header_color = "",
+  
+  -- Content colors (for the actual diagnostic messages and LSP documentation)
+  -- format is #RRGGBB
+  diagnostic_content_color = "",
+  lsp_info_content_color = "",
 }
 
 M.options = {}
