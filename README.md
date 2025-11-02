@@ -35,6 +35,21 @@ require("eagle").setup({
 })
 ```
 
+Example setup for [LazyVim](https://www.lazyvim.org/) that is confirmed to work (under `lua/plugins/`):
+```lua
+return {
+  {
+    "soulis-1256/eagle.nvim",
+    config = function()
+      require("eagle").setup({
+        keyboard_mode = true
+      })
+      vim.keymap.set('n', '<Tab>', ':EagleWin<CR>', { noremap = true, silent = true })
+    end,
+  },
+}
+```
+
 You can find the description of all the options in [config.lua](./lua/eagle/config.lua). Here is a concise list:
 
 ```lua
