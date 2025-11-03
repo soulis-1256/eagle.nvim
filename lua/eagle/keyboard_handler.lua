@@ -5,9 +5,14 @@ local M = {}
 
 -- Function for keyboard-driven rendering (no delays, no mouse checks)
 function M.render_keyboard_mode()
-    if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) and vim.api.nvim_get_current_win() ~= util.eagle_win then
-        vim.api.nvim_set_current_win(util.eagle_win)
-        return
+    if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) then
+        if vim.api.nvim_get_current_win() == util.eagle_win then
+            vim.api.nvim_win_close(util.eagle_win, false)
+            return
+        else
+            vim.api.nvim_set_current_win(util.eagle_win)
+            return
+        end
     end
     util.load_diagnostics(true)
 
