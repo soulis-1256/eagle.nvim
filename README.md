@@ -73,6 +73,10 @@ You can find the description of all the options in [config.lua](./lua/eagle/conf
   title_pos = "center",
   title_color = "#8AAAE5",
   border_color = "#8AAAE5",
+  diagnostic_header_color = "",
+  lsp_info_header_color = "",
+  diagnostic_content_color = "",
+  lsp_info_content_color = "",
 ```
 
 > [!IMPORTANT]\
