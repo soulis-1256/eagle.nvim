@@ -190,7 +190,7 @@ function M.debug_lsp_clients(opts)
         }
 
         for _, method in ipairs(common_methods) do
-            add("• " .. method .. ": " .. tostring(client.supports_method(method)))
+            add("• " .. method .. ": " .. tostring(client:supports_method(method)))
         end
 
         -- Server capabilities (detailed info)
@@ -346,7 +346,7 @@ local function check_lsp_support()
 
     -- check if any of the relevant clients support textDocument/hover
     for _, client in ipairs(relevant_clients) do
-        if client.supports_method("textDocument/hover") then
+        if client:supports_method("textDocument/hover") then
             if config.options.logging then
                 print("Found LSP client supporting textDocument/hover: " .. client.name)
             end
