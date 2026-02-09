@@ -11,16 +11,16 @@ A Neovim plugin that provides a floating window for diagnostics and LSP informat
 
 ## Table of Contents
 
-- [Features](#-features)
-- [Why eagle.nvim?](#-why-eaglenvim)
-- [Requirements](#-requirements)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Usage](#-usage)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [Support](#-support)
-- [Acknowledgments](#-acknowledgments)
+- [Features](#features)
+- [Why eagle.nvim?](#why-eaglenvim)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Support](#support)
+- [Acknowledgments](#acknowledgments)
 
 ## Features
 
@@ -48,7 +48,7 @@ A Neovim plugin that provides a floating window for diagnostics and LSP informat
 ## Requirements
 
 - Neovim `API level 12` (tested on a version as old as `0.10.2`.
-- A configured LSP server to provide the LSP information. This is only a requirement if you need the feature. If you don't, make sure you set `show_lsp_info=false` so you save some cpu cycles (see more in [Configuration](#-configuration)).
+- A configured LSP server to provide the LSP information. This is only a requirement if you need the feature. If you don't, make sure you set `show_lsp_info=false` so you save some cpu cycles (see more in [Configuration](#configuration)).
 
 ## Installation
 
