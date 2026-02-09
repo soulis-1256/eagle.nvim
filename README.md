@@ -47,15 +47,33 @@ A Neovim plugin that provides a floating window for diagnostics and LSP informat
 
 ## Requirements
 
-- Neovim `>= 0.10.2` (API level 12)
-- A configured LSP server to provide the LSP information
+- Neovim `API level 12` (tested on a version as old as `0.10.2`.
+- A configured LSP server to provide the LSP information. This is only a requirement if you need the feature. If you don't, make sure you set `show_lsp_info=false` so you save some cpu cycles (see more in [Configuration](#-configuration)).
 
 ## Installation
 
 <details>
-<summary><b>Using lazy.nvim</b></summary>
+<summary>Using <a href="https://www.lazyvim.org/">LazyVim</a></summary>
 
-[lazy.nvim](https://github.com/folke/lazy.nvim) is a modern plugin manager for Neovim.
+Create a file under `lua/plugins/eagle.lua`:
+```lua
+return {
+    {
+        "soulis-1256/eagle.nvim",
+        config = function()
+            require("eagle").setup({
+                keyboard_mode = true,
+            })
+            vim.o.mousemoveevent = true
+            vim.keymap.set('n', '<Tab>', ':EagleWin<CR>', { noremap = true, silent = true })
+        end,
+    },
+}
+```
+</details>
+
+<details>
+<summary>Using <a href="https://github.com/folke/lazy.nvim">lazy.nvim</a></summary>
 
 **Basic setup:**
 ```lua
@@ -97,74 +115,41 @@ vim.o.mousemoveevent = true
 ```
 </details>
 
-<details>
-<summary><b>Using LazyVim</b></summary>
-
-[LazyVim](https://www.lazyvim.org/) is a Neovim setup powered by lazy.nvim.
-
-Create a file under `lua/plugins/eagle.lua`:
-```lua
-return {
-    {
-        "soulis-1256/eagle.nvim",
-        config = function()
-            require("eagle").setup({
-                keyboard_mode = true,
-            })
-            vim.o.mousemoveevent = true
-            vim.keymap.set('n', '<Tab>', ':EagleWin<CR>', { noremap = true, silent = true })
-        end,
-    },
-}
-```
-</details>
-
 ## Configuration
 
-All options can be passed to the `setup()` function. See [config.lua](./lua/eagle/config.lua) for extensive documentation.
+All options can be passed to the `setup()` function. See [config.lua](./lua/eagle/config.lua) for documentation.
 
 ### Default Options
 
 ```lua
-require("eagle").setup({
-    -- Behavior
-    mouse_mode = true,           -- Enable mouse hover detection
-    keyboard_mode = false,       -- Enable keyboard-triggered window
-    close_on_cmd = true,         -- Close window when entering command mode
-    show_lsp_info = true,        -- Show LSP hover information
-    logging = false,             -- Enable debug logging
-
-    -- Content
-    show_headers = true,         -- Show section headers in the window
-    order = 1,                   -- Order of content (1: diagnostics first, 2: LSP first)
-    improved_markdown = true,    -- Enhanced markdown rendering
-
-    -- Timing
-    render_delay = 500,          -- Delay (ms) before rendering the window
-    detect_idle_timer = 50,      -- Interval (ms) for idle detection
-
-    -- Window Positioning
-    window_row = 1,              -- Vertical offset from cursor
-    window_col = 5,              -- Horizontal offset from cursor
-    scrollbar_offset = 0,        -- Offset for scrollbar
-
-    -- Window Size
-    max_width_factor = 2,        -- Max width as factor of window width
-    max_height_factor = 2.5,     -- Max height as factor of window height
-
-    -- Window Appearance
-    border = "single",           -- Border style: "single", "double", "rounded", "solid", "shadow", "none"
-    title = "",                  -- Window title
-    title_pos = "center",        -- Title position: "left", "center", "right"
-
-    -- Colors (leave empty to use defaults)
-    title_color = "#8AAAE5",           -- Title text color
-    border_color = "#8AAAE5",          -- Border color
-    diagnostic_header_color = "",      -- Diagnostic header color
-    lsp_info_header_color = "",        -- LSP info header color
-    diagnostic_content_color = "",     -- Diagnostic content color
-    lsp_info_content_color = "",       -- LSP info content color
-})
+{
+    show_headers=true,
+    order=1,
+    concealcursor="nv",
+    conceallevel=1,
+    improved_markdown=true,
+    mouse_mode=true,
+    keyboard_mode=false,
+    logging=false,
+    close_on_cmd=true,
+    show_lsp_info=true,
+    scrollbar_offset=0,
+    max_width_factor=2,
+    max_height_factor=2.5,
+    render_delay=500,
+    detect_idle_timer=50,
+    window_row=1,
+    window_col=5,
+    border="single",
+    title="",
+    title_pos="center",
+    title_color="#8AAAE5",
+    border_color="#8AAAE5",
+    diagnostic_header_color="",
+    lsp_info_header_color="",
+    diagnostic_content_color="",
+    lsp_info_content_color="",
+}
 ```
 
 ## Usage
