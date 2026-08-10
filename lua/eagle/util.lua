@@ -901,7 +901,7 @@ function M.create_eagle_win(keyboard_event)
     end
 
     -- create a buffer with buflisted = false and scratch = true
-    if eagle_buf then
+    if eagle_buf and vim.api.nvim_buf_is_valid(eagle_buf) then
         vim.api.nvim_buf_delete(eagle_buf, {})
     end
     eagle_buf = vim.api.nvim_create_buf(false, true)
