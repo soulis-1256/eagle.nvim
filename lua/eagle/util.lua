@@ -438,22 +438,6 @@ local function check_lsp_support()
     return false
 end
 
--- lua_ls answers hover with this while the workspace is still indexing.
-local function is_placeholder_hover(lines)
-    if not lines or #lines == 0 then
-        return true
-    end
-
-    local text = table.concat(lines, '\n')
-    text = text:gsub('```[%w_]*\n', ''):gsub('```', '')
-    text = vim.trim(text)
-    if text == '' then
-        return true
-    end
-
-    return text:match('^Workspace loading:%s*%d+%s*/%s*%d+$') ~= nil
-end
-
 --keyboard_event is the same as with M.create_eagle_win(keyboard_event)
 function M.load_lsp_info(keyboard_event, callback)
     --Ideally we need this binded with Event(s)
@@ -507,7 +491,7 @@ function M.load_lsp_info(keyboard_event, callback)
                         end
                     end
 
-                    if has_content and not is_placeholder_hover(new_lines) then
+                    if has_content then
                         if #combined_lsp_info > 0 then
                             table.insert(combined_lsp_info, "---")
                         end
@@ -535,7 +519,7 @@ function M.load_lsp_info(keyboard_event, callback)
                     break
                 end
             end
-            if not has_content or is_placeholder_hover(M.lsp_info) then
+            if not has_content then
                 if config.options.logging then
                     print("[Eagle] LSP info filtered out (only whitespace)")
                 end
