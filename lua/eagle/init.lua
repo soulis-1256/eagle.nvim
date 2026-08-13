@@ -9,8 +9,9 @@ function M.setup(opts)
   -- a bool variable to detect if the mouse is moving, binded with the <MouseMove> event
   local isMouseMoving = false
 
-  -- a bool variable to make sure process_mouse_pos() is only called once, when the mouse goes idle
-  local lock_processing = false
+  -- True until the user has moved the mouse. getmousepos() is (1,1) at
+  -- startup, which would otherwise open a float on the first character.
+  local lock_processing = true
 
   -- Call the config setup functon to initialize the options
   config.setup(opts)
@@ -52,11 +53,10 @@ function M.setup(opts)
     append_keymap({ "n", "v" }, ":", function(preceding)
       preceding()
 
-      if util.eagle_win
-          and vim.api.nvim_win_is_valid(util.eagle_win)
+      if util.is_eagle_win_valid()
           and vim.api.nvim_get_current_win() == util.eagle_win and config.options.close_on_cmd
           and vim.api.nvim_win_get_config(util.eagle_win).focusable then
-        vim.api.nvim_win_close(util.eagle_win, false)
+        util.close_eagle_win()
         mouse_handler.win_lock = 0
       end
     end, { silent = true })
@@ -101,8 +101,8 @@ function M.setup(opts)
 
   vim.api.nvim_create_autocmd("CursorMoved", {
     callback = function()
-      if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) and vim.api.nvim_get_current_win() ~= util.eagle_win then
-        vim.api.nvim_win_close(util.eagle_win, false)
+      if util.is_eagle_win_valid() and vim.api.nvim_get_current_win() ~= util.eagle_win then
+        util.close_eagle_win()
         mouse_handler.win_lock = 0
       end
     end
@@ -118,9 +118,8 @@ function M.toggle_headers()
   config.options.show_headers = not config.options.show_headers
 
   -- If eagle window is open and valid, close it
-  if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) then
-    vim.api.nvim_win_close(util.eagle_win, false)
-    -- Reset the win_lock for mouse handler
+  if util.is_eagle_win_valid() then
+    util.close_eagle_win()
     mouse_handler.win_lock = 0
   end
 

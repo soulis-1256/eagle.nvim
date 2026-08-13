@@ -2,8 +2,90 @@ local config = require('eagle.config')
 
 local M = {}
 
--- keep track of eagle window id and eagle buffer id
+-- Cached ids only. Session restore, :bwipeout, and closing a last window can
+-- invalidate them; never pass a cached id to the API without a validity check.
+-- See :help nvim_buf_is_valid and :help scratch-buffer.
 local eagle_buf = nil
+local eagle_augroup = vim.api.nvim_create_augroup('eagle.nvim', { clear = true })
+
+local function is_valid_buf(buf)
+    return type(buf) == 'number' and vim.api.nvim_buf_is_valid(buf)
+end
+
+local function is_valid_win(win)
+    return type(win) == 'number' and vim.api.nvim_win_is_valid(win)
+end
+
+function M.is_eagle_win_valid()
+    return is_valid_win(M.eagle_win)
+end
+
+function M.close_eagle_win()
+    if is_valid_win(M.eagle_win) then
+        vim.api.nvim_win_close(M.eagle_win, false)
+    end
+    M.eagle_win = nil
+end
+
+-- Documented scratch-buffer options (:help special-buffers / :help scratch-buffer).
+-- bufhidden=hide keeps the buffer when the float closes so we can reuse it.
+local function configure_scratch_buf(buf)
+    vim.api.nvim_set_option_value('buftype', 'nofile', { buf = buf })
+    vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = buf })
+    vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
+    vim.api.nvim_set_option_value('modeline', false, { buf = buf })
+end
+
+local function ensure_eagle_buf()
+    if is_valid_buf(eagle_buf) then
+        return eagle_buf
+    end
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    if buf == 0 then
+        return nil
+    end
+
+    configure_scratch_buf(buf)
+
+    -- External wipes (auto-session, :%bd) must drop the cached id.
+    vim.api.nvim_create_autocmd('BufWipeout', {
+        group = eagle_augroup,
+        buffer = buf,
+        once = true,
+        callback = function()
+            if eagle_buf == buf then
+                eagle_buf = nil
+            end
+        end,
+    })
+
+    eagle_buf = buf
+    return buf
+end
+
+local function unlock_eagle_buf(buf)
+    vim.api.nvim_set_option_value('modifiable', true, { buf = buf })
+    vim.api.nvim_set_option_value('readonly', false, { buf = buf })
+end
+
+local function lock_eagle_buf(buf)
+    vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
+    vim.api.nvim_set_option_value('readonly', true, { buf = buf })
+end
+
+local function watch_eagle_win(win)
+    vim.api.nvim_create_autocmd('WinClosed', {
+        group = eagle_augroup,
+        pattern = tostring(win),
+        once = true,
+        callback = function()
+            if M.eagle_win == win then
+                M.eagle_win = nil
+            end
+        end,
+    })
+end
 
 -- Create a namespace for our highlights to persist
 local eagle_ns = vim.api.nvim_create_namespace('eagle_highlights')
@@ -45,8 +127,7 @@ end
 -- format the lines of eagle_buf, in order to fit vim.o.columns / config.options.max_width_factor
 -- for the case where an href link is splitted, I'm open to discussions on how to handle it
 local function format_lines(max_width)
-    if not eagle_buf then
-        -- Don't call format_lines if eagle_buf has not been initialized
+    if not is_valid_buf(eagle_buf) then
         return
     end
 
@@ -357,6 +438,22 @@ local function check_lsp_support()
     return false
 end
 
+-- lua_ls answers hover with this while the workspace is still indexing.
+local function is_placeholder_hover(lines)
+    if not lines or #lines == 0 then
+        return true
+    end
+
+    local text = table.concat(lines, '\n')
+    text = text:gsub('```[%w_]*\n', ''):gsub('```', '')
+    text = vim.trim(text)
+    if text == '' then
+        return true
+    end
+
+    return text:match('^Workspace loading:%s*%d+%s*/%s*%d+$') ~= nil
+end
+
 --keyboard_event is the same as with M.create_eagle_win(keyboard_event)
 function M.load_lsp_info(keyboard_event, callback)
     --Ideally we need this binded with Event(s)
@@ -410,7 +507,7 @@ function M.load_lsp_info(keyboard_event, callback)
                         end
                     end
 
-                    if has_content then
+                    if has_content and not is_placeholder_hover(new_lines) then
                         if #combined_lsp_info > 0 then
                             table.insert(combined_lsp_info, "---")
                         end
@@ -438,7 +535,7 @@ function M.load_lsp_info(keyboard_event, callback)
                     break
                 end
             end
-            if not has_content then
+            if not has_content or is_placeholder_hover(M.lsp_info) then
                 if config.options.logging then
                     print("[Eagle] LSP info filtered out (only whitespace)")
                 end
@@ -900,33 +997,38 @@ function M.create_eagle_win(keyboard_event)
         end
     end
 
-    -- create a buffer with buflisted = false and scratch = true
-    if eagle_buf then
-        vim.api.nvim_buf_delete(eagle_buf, {})
+    -- Recycle one scratch buffer. Closing the previous float first avoids
+    -- nvim_buf_delete on a buffer that is still displayed (see :help api-floatwin).
+    M.close_eagle_win()
+
+    local buf = ensure_eagle_buf()
+    if not buf then
+        return
     end
-    eagle_buf = vim.api.nvim_create_buf(false, true)
+
+    unlock_eagle_buf(buf)
 
     -- this "stylizes" the markdown messages (diagnostics + lsp info)
     -- and attaches them to the eagle_buf
     local max_width = math.floor(vim.o.columns / config.options.max_width_factor)
     if config.options.improved_markdown then
-        stylize_markdown_buffer(eagle_buf, messages, { width = max_width })
+        stylize_markdown_buffer(buf, messages, { width = max_width })
     else
         --old way, not recommended
-        vim.lsp.util.stylize_markdown(eagle_buf, messages, {})
+        vim.lsp.util.stylize_markdown(buf, messages, {})
     end
 
     -- format long lines of the buffer
     format_lines(max_width)
-    
+
     -- Apply custom section highlighting AFTER stylization and formatting
     -- Uses extmarks to persist through scrolling
-    apply_section_highlights(eagle_buf)
-    
+    apply_section_highlights(buf)
+
     -- Reapply highlights after a short delay to ensure they override treesitter
     -- Treesitter parsing is async, so we need to wait for it to complete
     vim.defer_fn(function()
-        if eagle_buf and vim.api.nvim_buf_is_valid(eagle_buf) then
+        if is_valid_buf(eagle_buf) then
             apply_section_highlights(eagle_buf)
             if config.options.logging then
                 print("[Eagle] Reapplied highlights after treesitter settling")
@@ -934,11 +1036,10 @@ function M.create_eagle_win(keyboard_event)
         end
     end, 50)  -- 50ms delay should be enough for treesitter to parse
 
-    vim.api.nvim_set_option_value("modifiable", false, { buf = eagle_buf })
-    vim.api.nvim_set_option_value("readonly", true, { buf = eagle_buf })
+    lock_eagle_buf(buf)
 
     -- Iterate over each line in the buffer to find the max width
-    local lines = vim.api.nvim_buf_get_lines(eagle_buf, 0, -1, false)
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local max_line_width = 0
     for _, line in ipairs(lines) do
         local line_width = vim.fn.strdisplaywidth(line)
@@ -946,7 +1047,7 @@ function M.create_eagle_win(keyboard_event)
     end
 
     -- Calculate the window height based on the number of lines in the buffer
-    local height = math.min(vim.api.nvim_buf_line_count(eagle_buf),
+    local height = math.min(vim.api.nvim_buf_line_count(buf),
         math.floor(vim.o.lines / config.options.max_height_factor))
 
     -- need + 1 for hyperlinks (shift + click)
@@ -963,7 +1064,7 @@ function M.create_eagle_win(keyboard_event)
         row = config.options.window_row
     end
 
-    M.eagle_win = vim.api.nvim_open_win(eagle_buf, false, {
+    M.eagle_win = vim.api.nvim_open_win(buf, false, {
         title = { { config.options.title, "TitleColor" } },
         title_pos = config.options.title_pos,
         relative = relative,
@@ -976,10 +1077,10 @@ function M.create_eagle_win(keyboard_event)
         focusable = focusable,
     })
 
-    -- Set conceal options for eagle window
-    if M.eagle_win and vim.api.nvim_win_is_valid(M.eagle_win) then
-        vim.api.nvim_win_set_option(M.eagle_win, "concealcursor", config.options.concealcursor)
-        vim.api.nvim_win_set_option(M.eagle_win, "conceallevel", config.options.conceallevel)
+    if is_valid_win(M.eagle_win) then
+        vim.api.nvim_set_option_value("concealcursor", config.options.concealcursor, { win = M.eagle_win })
+        vim.api.nvim_set_option_value("conceallevel", config.options.conceallevel, { win = M.eagle_win })
+        watch_eagle_win(M.eagle_win)
     end
 end
 

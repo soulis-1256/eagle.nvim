@@ -18,7 +18,7 @@ local last_mouse_pos = nil
 this happens when the mouse moves faster than the time it takes
 for a window to be created, especially during vim.lsp.buf_request_sync()
 that contains vim.wait()]]
---M.win_lock = 0
+M.win_lock = 0
 
 local function render_mouse_mode()
     renderDelayTimer:stop()
@@ -47,8 +47,8 @@ local function render_mouse_mode()
                 return
             end
         else
-            if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) then
-                vim.api.nvim_win_close(util.eagle_win, false)
+            if util.is_eagle_win_valid() then
+                util.close_eagle_win()
                 M.win_lock = 0
 
                 -- restart the timer with half of <config.options.render_delay>,
@@ -165,14 +165,18 @@ function M.process_mouse_pos()
     -- return if not in normal mode or if the mouse is not hovering over actual code
     if vim.fn.mode() ~= 'n' or not M.is_mouse_on_code() then
         renderDelayTimer:stop()
-        if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) and vim.api.nvim_get_current_win() ~= util.eagle_win then
+        if util.is_eagle_win_valid() and vim.api.nvim_get_current_win() ~= util.eagle_win then
             M.manage_windows()
+        elseif not util.is_eagle_win_valid() then
+            M.win_lock = 0
         end
         return
     end
 
-    if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) then
+    if util.is_eagle_win_valid() then
         M.manage_windows()
+    else
+        M.win_lock = 0
     end
 
     if vim.api.nvim_get_current_win() ~= util.eagle_win then
@@ -183,7 +187,7 @@ end
 function M.manage_windows()
     -- if the eagle window is not open, return and make sure it can be re-rendered
     -- this is done with M.win_lock, to prevent the case where the user presses :q for the eagle window
-    if not util.eagle_win or not vim.api.nvim_win_is_valid(util.eagle_win) then
+    if not util.is_eagle_win_valid() then
         M.win_lock = 0
         return
     end
@@ -228,7 +232,7 @@ function M.manage_windows()
             vim.api.nvim_win_set_cursor(util.eagle_win, { 1, 0 })
         end
     else
-        if util.eagle_win and vim.api.nvim_win_is_valid(util.eagle_win) and vim.fn.mode() == "n" then
+        if util.is_eagle_win_valid() and vim.fn.mode() == "n" then
             -- close the window if the mouse is over or comes from a special character
             if not M.check_char(mouse_pos) and vim.api.nvim_get_current_win() ~= util.eagle_win then -- and (last_mouse_line ~= mouse_pos.line) then
                 return
@@ -236,7 +240,7 @@ function M.manage_windows()
         end
         -- focusable if created by the keyboard mode
         if vim.api.nvim_win_get_config(util.eagle_win).focusable then
-            vim.api.nvim_win_close(util.eagle_win, false)
+            util.close_eagle_win()
             M.win_lock = 0
         end
     end
